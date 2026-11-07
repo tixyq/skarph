@@ -1,0 +1,58 @@
+# demo-v0.5 level
+ambient 0.36 0.38 0.44
+light -0.461 -0.838 -0.293 0.85 0.80 0.70
+camera 0 0.5 0 42 34
+
+# the lightmapped level geometry
+object level.mdl 0 0 0
+
+# props
+object statue.mdl -13 1 13 0 73 0
+object statue.mdl -5.5 0 -3 0 321 0
+object statue.mdl 8.5 0 8.5 0 147 0
+object statue.mdl 0 0 -10 0 93 0
+object statue.mdl -17.5 0 2 0 3 0
+object statue.mdl 14 0 12 0 278 0
+object gem.mdl -13 3.4 13 0 0 0 0.45 0.45 0.45
+object gem.mdl -5.5 2.4 -3 0 0 0 0.45 0.45 0.45
+object gem.mdl 8.5 2.4 8.5 0 0 0 0.45 0.45 0.45
+object gem.mdl 0 2.4 -10 0 0 0 0.45 0.45 0.45
+object gem.mdl -17.5 2.4 2 0 0 0 0.45 0.45 0.45
+object gem.mdl 14 2.4 12 0 0 0 0.45 0.45 0.45
+object gem.mdl -9 2 -10.5 0 0 0 0.45 0.45 0.45
+object gem.mdl 9 2 -10.5 0 0 0 0.45 0.45 0.45
+object gem.mdl 3 1.8 3 0 0 0 0.45 0.45 0.45
+object gem.mdl -3 1.8 8.5 0 0 0 0.45 0.45 0.45
+
+# physics boxes (static)
+box 0 2.25 -20.5 21 2.25 0.5
+box 0 2.25 20.5 21 2.25 0.5
+box -20.5 2.25 0 0.5 2.25 20
+box 20.5 2.25 0 0.5 2.25 20
+box -14 1.75 -6 6 1.75 0.5
+box 8.5 1.75 -6 11.5 1.75 0.5
+box 6 1.75 0.25 0.5 1.75 5.75
+box 6 1.75 15.5 0.5 1.75 4.5
+box -16 1.75 6.5 4 1.75 0.5
+box -0.75 1.75 6.5 6.25 1.75 0.5
+box -15 2 -14 0.7 2 0.7
+box -9 2 -14 0.7 2 0.7
+box -3 2 -14 0.7 2 0.7
+box 3 2 -14 0.7 2 0.7
+box 9 2 -14 0.7 2 0.7
+box 15 2 -14 0.7 2 0.7
+box -13 0.5 13 4 0.5 4
+box -8.4 0.495 13 0.6 0.495 1
+box -7.2 0.33 13 0.6 0.33 1
+box -6 0.165 13 0.6 0.165 1
+box 0 0.75 11 0.75 0.75 0.75
+box 1.85 0.75 12.75 0.75 0.75 0.75
+box 0.65 2.15 11.25 0.65 0.65 0.65
+box 11 1.1 15 1 1.1 1
+box 15 0.6 0 1.5 0.6 2
+
+# spawn points
+spawn -10 6 -10
+spawn 10 6 -10
+spawn 0 6 14
+spawn -14 6 0

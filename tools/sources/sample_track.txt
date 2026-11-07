@@ -1,0 +1,6 @@
+# time  eye(x y z)      target(x y z)   fov  [cut]
+0.0     10 3 10         0 1 0           60
+2.0     0 2 14          0 1 0           50
+4.0     -12 4 0         0 1 0           65
+4.0     0 20 1          0 0 0           70   cut      # hard cut to a high shot
+6.0     0 12 1          0 0 0           40
