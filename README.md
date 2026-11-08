@@ -1,0 +1,37 @@
+<p align="center"><img src="icon.png" width="128" alt="Skarph"></p>
+
+# Skarph
+
+A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation in the game loop, OpenGL ES 1.x
+and 2.0 backends with automatic choice. The core has no platform dependencies, so it is easy to port.
+
+```
+skarph-core/      the engine, pure Java: loop, math, scene, physics, UI, effects
+skarph-android/   the platform layer: view, renderers, audio, storage, assets, input
+demos/            example programs (index: demos/README.md)
+docs/             MANUAL.md (guide) and API.md (every public class and member)
+tools/            Python tools: model converters, lightmap baker, camera tracks, level preview
+tests/            headless tests
+icon.png          the Skarph icon, 512x512, transparent
+build.sh          compiles, checks API levels, runs all tests
+```
+
+## Start
+
+Read [docs/MANUAL.md](docs/MANUAL.md), section 2, for a working app in one screen of code. The demos in `demos/` show
+every feature.
+
+## Build and test
+
+```
+./build.sh
+```
+
+Needs a JDK. The Android jars that enable the extra checks are described at the top of `build.sh`.
+
+## License
+
+MIT License (see [LICENSE](LICENSE)). You may use, modify and sell the code, including in closed-source and commercial
+projects; the only condition is that the copyright notice and the license text stay with copies of the code.
+
+Copyright (c) 2026 tixyq
