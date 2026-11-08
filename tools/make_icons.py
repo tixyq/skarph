@@ -2,7 +2,7 @@
 # Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Makes the Android launcher icons (48, 72 and 96 px) of every app from the project's icon.png.
 
-    python3 tools/make_icons.py --write    writes demos/*/res/drawable*/icon.png and game/res/drawable*/icon.png
+    python3 tools/make_icons.py --write    writes demos/*/res/drawable*/icon.png
     python3 tools/make_icons.py            without arguments (or -h, -help, --help): only this help
 
 The desktop jar needs nothing from here: build-desktop.sh copies icon.png itself. Needs Pillow."""
@@ -21,7 +21,7 @@ def main():
         print(__doc__)
         return 0 if len(sys.argv) == 1 or sys.argv[1] in ("-h", "-help", "--help") else 2
     src = Image.open(os.path.join(ROOT, "icon.png")).convert("RGBA")
-    res_dirs = sorted(glob.glob(os.path.join(ROOT, "demos", "*", "res")) + glob.glob(os.path.join(ROOT, "game", "res")))
+    res_dirs = sorted(glob.glob(os.path.join(ROOT, "demos", "*", "res")))
     for res in res_dirs:
         for folder, size in DENSITIES.items():
             os.makedirs(os.path.join(res, folder), exist_ok=True)

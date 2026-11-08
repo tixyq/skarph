@@ -2,10 +2,10 @@
 package skarph.core;
 
 /**
- * Fixed-size ring buffer of input events. Thread-safe (UI thread pushes,
- * render thread polls). Zero allocation.
+ * Fixed-size ring buffer of input events. Thread-safe (the platform's input
+ * thread pushes, the render thread polls). Zero allocation.
  * When full: MOVE events are dropped; DOWN/UP overwrite the newest event so
- * a "finger up" is never lost.
+ * a "pointer up" is never lost.
  */
 public final class InputQueue {
     private final int capacity;

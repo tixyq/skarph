@@ -2,9 +2,8 @@
 # Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 # Builds ONE portable jar that runs on Windows, Linux and macOS (java -jar NAME.jar, Java 8 or newer).
 #
-#   ./build-desktop.sh                                   the maze game -> build/desktop/the-maze.jar (if the game/ folder is there),
-#                                                        otherwise the demo-v1.0 -> build/desktop/skarph-demo-v1.0.jar
-#   ./build-desktop.sh GAME_CLASS "SRC_DIRS" ASSETS_DIR OUT.jar [TITLE]     any other game, see docs/MANUAL.md, section 14
+#   ./build-desktop.sh                                   without arguments (or -h, -help, --help): only this help
+#   ./build-desktop.sh GAME_CLASS "SRC_DIRS" ASSETS_DIR OUT.jar [TITLE]     builds the jar, see docs/MANUAL.md, section 14
 #
 # The demo-v1.0 jar, for example:
 #   ./build-desktop.sh skarph.demo.v10.DesktopDemo "demos/demo-v1.0/src demos/demo-v1.0/desktop" demos/demo-v1.0/assets \
@@ -12,31 +11,25 @@
 #
 # Source files that import android.* (the Activity launchers) are left out of the jar.
 #
-# The jar holds the engine, the desktop layer, the game and its assets, but no LWJGL: on the first start the program
+# The jar holds the engine, the desktop layer, your program and its assets, but no LWJGL: on the first start the program
 # downloads LWJGL and the native libraries of the system it runs on (checked by SHA-1, cached, shared by all Skarph programs).
 # This script needs a network once, to get the LWJGL API jars it compiles against; they are fetched and checked by the
 # program's own downloader. Without a network: LWJGL_CP=/path/lwjgl.jar:/path/lwjgl-glfw.jar:... ./build-desktop.sh
+
+# Help only: no arguments, a help flag, or an incomplete argument list builds nothing.
+case "$1" in -h|-help|--help) HELP=1 ;; esac
+if [ $# -eq 0 ] || [ -n "$HELP" ] || [ $# -lt 4 ]; then
+  sed -n '3,/^$/p;/^#/!q' "$0" | sed -n '/^#/p' | sed 's/^# \{0,1\}//'
+  [ $# -eq 0 ] || [ -n "$HELP" ] && exit 0
+  exit 2
+fi
 set -e
 # Without --release, a newer JDK compiles against its own class library: calls such as ShortBuffer.position(int) then end up
 # in the bytecode and fail on Java 8 with NoSuchMethodError.
 if javac --release 8 -version >/dev/null 2>&1; then JOPT="--release 8"; else JOPT="-source 8 -target 8"; fi
 OUT=build/desktop
 A=skarph-android/src/skarph/android
-if [ $# -ge 4 ]; then
-  GAME=$1; SRC=$2; ASSETS=$3; JAR=$4; TITLE=${5:-Skarph}
-elif [ -d game/src ]; then
-  GAME=maze.DesktopMaze
-  SRC="game/src game/desktop"
-  ASSETS=game/assets
-  JAR=$OUT/the-maze.jar
-  TITLE="The Maze"
-else
-  GAME=skarph.demo.v10.DesktopDemo
-  SRC="demos/demo-v1.0/src demos/demo-v1.0/desktop"
-  ASSETS=demos/demo-v1.0/assets
-  JAR=$OUT/skarph-demo-v1.0.jar
-  TITLE="Skarph demo v1.0"
-fi
+GAME=$1; SRC=$2; ASSETS=$3; JAR=$4; TITLE=${5:-Skarph}
 # (a loop, not grep -L: its exit status differs between grep versions and set -e would stop the script without a word)
 FILES=$(find $SRC -name '*.java' | while read f; do grep -q '^import android\.' "$f" || echo "$f"; done)
 rm -rf $OUT/classes && mkdir -p $OUT/classes "$(dirname "$JAR")"

@@ -17,12 +17,12 @@ public final class Engine {
     private Screen screen;
     private Screen pending;
 
-    /** Set by the platform layer (EngineView does it). */
+    /** Set by the platform layer. */
     public void setAssets(Assets assets) {
         this.assets = assets;
     }
 
-    /** Set by the platform layer (EngineView does it). */
+    /** Set by the platform layer. */
     public void setAudio(Audio audio) {
         this.audio = audio != null ? audio : new NullAudio();
     }
@@ -32,7 +32,7 @@ public final class Engine {
         return audio;
     }
 
-    /** Set by the platform layer (EngineView does it). */
+    /** Set by the platform layer. */
     public void setStorage(Storage storage) {
         this.storage = storage != null ? storage : new MemoryStorage();
     }
@@ -81,10 +81,10 @@ public final class Engine {
         screen.render(r);
     }
 
-    /** Call on the render thread when the app goes to background. */
+    /** Call on the render thread when the app is paused (sent to the background, window minimized). */
     public void pause() {
         if (screen != null) {
-            screen.pause(); // the right moment to save settings: the process may be killed now
+            screen.pause(); // the right moment to save settings: the app may be closed now
         }
         audio.pauseAll();
     }

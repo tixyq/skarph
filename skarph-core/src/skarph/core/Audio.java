@@ -30,12 +30,12 @@ public interface Audio {
 
     boolean isMusicPlaying();
 
-    /** Called by the engine when the app goes to the background. */
+    /** Called by the engine when the app is paused. */
     void pauseAll();
 
-    /** Called by the engine when the app comes back. */
+    /** Called by the engine when the app is resumed. */
     void resumeAll();
 
-    /** Frees every native resource (call from Activity.onDestroy). */
+    /** Frees every native resource (call when the program ends). */
     void release();
 }

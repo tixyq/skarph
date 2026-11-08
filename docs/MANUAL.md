@@ -1,7 +1,10 @@
 # Manual
 
-A small 3D engine with 2D support. Fixed 60 Hz logic, no allocation while the game runs, OpenGL ES 1.x and 2.0 backends. This manual describes what each part does, where it lives and how to use it. Every public
-class and member is listed in [API.md](API.md).
+A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation while the game runs, OpenGL ES 1.x and 2.0 backends.
+The engine core is pure Java and knows no platform; the same game code runs on Android and on Windows, Linux and macOS through
+two platform layers. This manual describes what each part of the engine does, where it lives and how to use it. Everything
+platform specific is collected in [13](#13-platform-layers) (the contract and Android) and [14](#14-desktop-windows-linux-macos)
+(desktop); elsewhere it appears only as short notes. Every public class and member is listed in [API.md](API.md).
 
 1. [Overview](#1-overview)
 2. [Getting started](#2-getting-started)
@@ -15,7 +18,7 @@ class and member is listed in [API.md](API.md).
 10. [Diagnostics and quality](#10-diagnostics-and-quality)
 11. [Tools](#11-tools)
 12. [Build and tests](#12-build-and-tests)
-13. [Platform layer](#13-platform-layer)
+13. [Platform layers](#13-platform-layers)
 14. [Desktop: Windows, Linux, macOS](#14-desktop-windows-linux-macos)
 
 ---
@@ -24,14 +27,15 @@ class and member is listed in [API.md](API.md).
 
 ### Features
 
+- One engine, several platforms: Android and desktop (Windows, Linux, macOS) run the same `Screen` classes.
 - Fixed 60 Hz logic loop, math and memory tools (`Engine`, `Mat4`, `Pool`, `TextBuffer`).
 - Two graphics backends behind one interface: OpenGL ES 1.x (fixed pipeline) and OpenGL ES 2.0 (shaders), chosen
-  automatically.
+  automatically where both exist.
 - 2D: sprites, frame animation, bitmap fonts, a UI layer (buttons, toggles, sliders, pages).
 - 3D: scene graph, frustum culling, one directional light, baked lightmaps, fog, sky, billboards, particles.
 - A model format (MDL1), a level format, converters from OBJ and glTF, a lightmap baker.
 - Collisions, ray picking, a small rigid body world.
-- Sound (effects and music), settings, saved state, multi-touch.
+- Sound (effects and music), settings, saved state, pointer input (touch, multi-touch, mouse).
 - Cutscene tools (camera tracks, timelines), a profiler, a benchmark, an automatic quality governor.
 
 Not included: real-time shadows (baked light and blob shadows only), skeletal animation, tweening, networking, scripting.
@@ -39,28 +43,30 @@ Not included: real-time shadows (baked light and blob shadows only), skeletal an
 ### Architecture
 
 ```
-your game (Screen classes)        knows the engine
-skarph-android (platform layer)   EngineView, GLES1 / GLES2 renderers, audio, storage, assets
+your game (Screen classes)        knows the engine only
+platform layer                    one per platform: window or view, renderer, audio, storage, assets, input
+  skarph-android                  Android: EngineView, GLES1 / GLES2 renderers, audio, storage, assets
+  skarph-desktop                  Windows, Linux, macOS: GLFW window, OpenGL (LWJGL), OpenAL, files
 skarph-core (pure Java)           loop, math, scene, physics, UI, effects; no platform classes
 ```
 
 Dependencies point one way: the core never knows the platform, the engine never knows your game. The core, the physics,
-the UI and the demo screens therefore run in a plain JVM, which is how the tests work without a device. To port the
-engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQueue` (see [13](#13-platform-layer)).
+the UI and the demo screens therefore run in a plain JVM, which is how the tests work without a device or a window. To port the
+engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQueue` (see [13](#13-platform-layers)).
 
 ### Project layout
 
 | Folder | Content |
 |---|---|
 | `skarph-core/` | the pure Java engine (`skarph.core`) |
-| `skarph-android/` | the platform layer for Android (`skarph.android`) |
+| `skarph-android/` | the platform layer for Android (`skarph.android`); its renderers are also used by the desktop layer |
 | `skarph-desktop/` | the platform layer for Windows, Linux and macOS (`skarph.desktop`) |
 | `demos/` | example programs, see [demos/README.md](../demos/README.md) |
 | `tools/` | Python tools: converters, lightmap baker, camera tracks, level preview |
 | `tests/` | headless tests |
 | `docs/` | this manual and the API reference |
 | `icon.png` | the icon of every platform |
-| `build.sh` | compiles, checks API levels, runs all tests |
+| `build.sh` | compiles the engine and both platform layers, checks the Android API levels, runs all tests |
 | `build-desktop.sh` | builds a portable jar for Windows, Linux and macOS |
 
 ---
@@ -69,14 +75,27 @@ engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQue
 
 ### Set up a project
 
+A game is a set of `Screen` classes plus data files (`assets/`). Only the few lines that start the engine depend on the platform.
+
+**Android**
+
 1. Create a project with `minSdkVersion="3"` (add `android:screenOrientation="landscape"` for landscape games).
 2. Add the source folders `skarph-core/src` and `skarph-android/src`.
-3. Put your data files into the app `assets/` folder. Sounds must be `.ogg`, `.wav` or `.mp3`.
+3. Put your data files into the app `assets/` folder.
 4. No permissions are needed.
+
+**Desktop** (Windows, Linux, macOS)
+
+1. Put your classes and your data files (`assets/`) into folders of your choice.
+2. `./build-desktop.sh GAME_CLASS ...` compiles the engine, the desktop layer and your classes into one jar that runs everywhere
+   (section [14](#14-desktop-windows-linux-macos)).
+
+Sound files: `.ogg` and `.wav` work on every platform; `.mp3` only on Android.
 
 ### Smallest working app
 
-A big cube you can turn with a finger, with 8 small cubes orbiting it:
+A big cube you can turn with a finger (or the mouse), with 8 small cubes orbiting it. This screen knows only the engine, so
+it is the same on every platform:
 
 ```java
 public final class CubeScreen extends ScreenAdapter {
@@ -120,7 +139,9 @@ public final class CubeScreen extends ScreenAdapter {
 }
 ```
 
-The Activity creates the `Engine`, sets the first screen and hands the engine to an `EngineView`:
+A platform launcher creates the `Engine`, sets the first screen and connects the engine to a window.
+
+**Android:** the Activity hands the engine to an `EngineView`:
 
 ```java
 public final class MainActivity extends Activity {
@@ -142,16 +163,30 @@ public final class MainActivity extends Activity {
 }
 ```
 
-`EngineView` also installs the platform services into the engine: `Assets`, `Audio` and `Storage`.
+**Desktop:** a class that implements `Game` names the window and returns the first screen; the launcher in the jar does the rest
+(the mouse is one finger, so the cube turns by dragging):
+
+```java
+public final class CubeGame implements Game {
+    public GameConfig config() {
+        GameConfig c = new GameConfig();
+        c.title = "Cube"; c.appName = "cube";           // appName: folder of the saves
+        return c;
+    }
+    public Screen createScreen(Engine engine) { return new CubeScreen(); }
+}
+```
+
+Either way, the platform layer installs the platform services into the engine: `Assets`, `Audio` and `Storage`.
 
 ### Screen lifecycle
 
 | Callback | Called | Used for |
 |---|---|---|
-| `init(Engine, Renderer)` | once, on the GL thread, before the first frame | create meshes, textures, pools, UI |
+| `init(Engine, Renderer)` | once, on the render thread, before the first frame | create meshes, textures, pools, UI |
 | `update()` | 60 times per second | game logic, input |
 | `render(Renderer)` | once per frame | drawing |
-| `pause()` / `resume()` | the app goes to / returns from the background | **save here**: the process may be killed |
+| `pause()` / `resume()` | the app is paused / resumed (Android: sent to the background and back; desktop: window minimized or closed, and restored) | **save here**: the app may be closed without further notice |
 | `dispose()` | when another screen replaces this one | free what you own |
 
 `engine.setScreen(newScreen)` takes effect at the start of the next frame.
@@ -179,19 +214,19 @@ Classes: `Engine`, `Screen`, `ScreenAdapter`, `TickClock`, `InputEvent`, `InputQ
 ```java
 Engine engine = new Engine();
 engine.setScreen(new MyScreen());      // applied at the start of the next frame
-engine.input                           // InputQueue, filled by the UI thread
+engine.input                           // InputQueue, filled by the platform layer
 engine.stats                           // fps, tps, nowNanos
 engine.getAssets() / getAudio() / getStorage()     // installed by the platform layer; never null
-engine.pause(); engine.resume();       // forwarded by EngineView; pause music and loops
+engine.pause(); engine.resume();       // forwarded by the platform layer; pause music and loops
 ```
 
 `Stats.fps` and `Stats.tps` change once per second (`stats.changed` becomes true). `Stats.nowNanos` is the time stamp of
 the current frame, so a screen can read the frame time without its own clock. The platform layer logs FPS and TPS
-(tag `skarph`).
+(Android: logcat, tag `skarph`; desktop: the console, lines starting with `skarph:`).
 
 ### Input
 
-`engine.input` is a ring buffer of 256 events written by the UI thread and read in `update()`.
+`engine.input` is a ring buffer of 256 events written by the platform's input thread and read in `update()`.
 
 ```java
 private final InputEvent event = new InputEvent();       // once, in init()
@@ -208,7 +243,7 @@ public void update() {
 ```
 
 Coordinates are pixels, origin top-left. When the queue is full, `MOVE` events are dropped; `DOWN` and `UP` never are.
-Every event carries `event.pointer`, the finger id.
+Every event carries `event.pointer`, the pointer id: the finger on a touch screen, always 0 for the mouse on desktop.
 
 **Multi-touch.** `TouchState` turns the event stream into a simple model:
 
@@ -223,8 +258,8 @@ touch.getPinchDistance();              // distance between exactly two fingers, 
 float d = touch.consumePinch();        // change since the last call: + apart, - together
 ```
 
-Single-finger code keeps working: it only reads pointer 0. `TouchDecoder` is the platform-independent part that turns raw
-native touch data into events.
+Single-pointer code keeps working: it only reads pointer 0, which is also the desktop mouse (left button). `TouchDecoder` is
+the platform-independent part that turns raw touch data into events.
 
 ### Math
 
@@ -279,7 +314,7 @@ Classes: `Renderer`, `Camera`, `Shapes`, `MeshData`, `Sky`, `GLES1Renderer`, `GL
 ### The Renderer interface
 
 All drawing goes through `skarph.core.Renderer`. Meshes and textures are **int handles**, so a screen survives the loss of
-the GL context (the renderer rebuilds everything when the app returns from the background).
+the GL context (the renderer rebuilds everything after the context is lost, for example when an Android app returns from the background).
 
 ```java
 int  createMesh(MeshData data);                       // init time only
@@ -328,7 +363,7 @@ camera.lookAt(ex, camHeight, ez, 0f, 0f, 0f, 0f, 1f, 0f);
 - Width and height must be **powers of two**. Other sizes are rejected with a log line (tag `skarph`) and `loadTexture`
   returns `-1`. 256 x 256 or 512 x 512 is safe everywhere.
 - `smooth = false` is nearest filtering (crisp pixels, fastest), `true` is linear. `repeat = true` tiles the texture.
-- The image is decoded without scaling, uploaded, and the bitmap is released at once.
+- The image is decoded without scaling, uploaded, and the decoded copy is released at once.
 
 ### Light
 
@@ -390,7 +425,8 @@ Both backends count the same way. For a ready-made text see `Profiler` ([10](#10
 
 ### Backends
 
-The same `Renderer` interface runs on two backends:
+The same `Renderer` interface runs on two backends. The ES 2.0 backend runs on Android and on the desktop; the ES 1.x backend
+exists for old Android devices:
 
 | | ES 1.x (`GLES1Renderer`) | ES 2.0 (`GLES2Renderer`) |
 |---|---|---|
@@ -398,16 +434,19 @@ The same `Renderer` interface runs on two backends:
 | Normals under non-uniform scale | normalized only | correct (normal matrix) |
 | Vertex buffers (VBO) | only on ES 1.1 hardware | always, one interleaved buffer per mesh |
 | Lightmaps | needs 2 texture units | always |
-| Minimum platform version | API 3 | API 9 and an ES 2.0 GPU |
+| Where it runs | Android API 3 and newer | Android API 9 and newer with an ES 2.0 GPU; desktop with OpenGL 2.1 or newer |
 
 ```java
+renderer.getBackendName();                                       // "OpenGL ES 2.0 (shaders)"
+
+// Android: the choice is made when the view is created
 new EngineView(this, engine);                                    // BACKEND_AUTO: ES 2.0 if possible
 new EngineView(this, engine, EngineView.BACKEND_GLES1);          // force the fixed pipeline
 view.getBackend();                                               // what is really used
-renderer.getBackendName();                                       // "OpenGL ES 2.0 (shaders)"
 ```
 
-Choosing the backend, fallback and the shader set: [13](#13-platform-layer).
+On the desktop there is only the ES 2.0 backend, so there is nothing to choose. Choosing the backend, fallback and the shader
+set: [13](#13-platform-layers).
 
 ---
 
@@ -937,12 +976,13 @@ the camera skips poses but the story still takes the same number of ticks.
 
 ## 9. Audio and storage
 
-Classes: `Audio`, `NullAudio`, `AndroidAudio`, `Storage`, `MemoryStorage`, `AndroidStorage`, `Settings`.
+Classes: `Audio`, `NullAudio`, `Storage`, `MemoryStorage`, `Settings`. Platform implementations: `AndroidAudio` and
+`AndroidStorage` (Android), `OpenAlAudio` and `DesktopStorage` (desktop).
 
 ### Audio
 
 `engine.getAudio()` is never null: the default is a `NullAudio` that does nothing, so code and tests run without sound.
-The platform layer installs the real implementation (`AndroidAudio`).
+The platform layer installs the real implementation (`AndroidAudio` on Android, `OpenAlAudio` on the desktop).
 
 ```java
 Audio audio = engine.getAudio();
@@ -954,13 +994,14 @@ audio.setMusicVolume(0.6f);
 audio.stopMusic();
 ```
 
-- **Effects** use `SoundPool` (up to 8 overlapping streams), **music** uses `MediaPlayer` (prepared asynchronously, so
-  `playMusic` never blocks the game).
-- Use **`.ogg`, `.wav` or `.mp3`**. A 22 kHz mono 16-bit WAV is small and works everywhere.
-- Effects load in the background: `playSound` returns `-1` until the sample is ready. Load sounds in `init()`; a sound
-  asked for too early is simply skipped.
-- `Engine.pause()` / `resume()` pause and resume music and looping effects automatically. Call `EngineView.destroy()` from
-  `Activity.onDestroy()` to release the native players.
+- **Effects** are short samples played on overlapping streams (Android: `SoundPool`, up to 8; desktop: OpenAL, 32 voices).
+  **Music** is streamed and prepared in the background, so `playMusic` never blocks the game.
+- Formats: **`.ogg` and `.wav`** everywhere; `.mp3` only on Android. A 22 kHz mono 16-bit WAV is small and works everywhere.
+- Effects may load in the background (Android): `playSound` returns `-1` until the sample is ready. Load sounds in `init()`;
+  a sound asked for too early is simply skipped. Without a sound device (desktop) the game runs silent.
+- `Engine.pause()` / `resume()` pause and resume music and looping effects automatically. `audio.release()` frees the native
+  players when the program ends; the platform layer calls it for you (Android: `EngineView.destroy()` from
+  `Activity.onDestroy()`; desktop: when the window closes).
 - Limits: one music track at a time, no 3D positional sound, no audio focus handling.
 
 Sounds can be tied to a timeline: a horn in a given scene, a bell every half turn of a rotating light, a launch sound and
@@ -981,15 +1022,16 @@ settings.save(engine.getStorage(), "settings.txt");
 - `Settings` keeps int, float, boolean and String values (keys without white space). `getX` / `putX` with literal keys do
   not allocate; `save` and `load` allocate, so call them at start, in `pause()` and when leaving a page, not per frame.
 - The file is plain text (`f musicVolume 0.5`); damaged lines are skipped and good ones are kept.
-- `engine.getStorage()` is a `Storage` (`load`, `save`, `delete` whole files). The platform implementation is the app's
-  private internal storage (no permissions). The default is `MemoryStorage`: nothing survives a restart, ideal for tests.
-- **Save in `Screen.pause()`**: the process may be killed in the background and `pause()` is the last reliable moment.
+- `engine.getStorage()` is a `Storage` (`load`, `save`, `delete` whole files). The platform implementation keeps files in a
+  private place of the app: on Android the internal storage (no permissions), on the desktop the application data folder
+  (section [14](#what-the-desktop-layer-does)). The default is `MemoryStorage`: nothing survives a restart, ideal for tests.
+- **Save in `Screen.pause()`**: the app may be closed without further notice and `pause()` is the last reliable moment.
 
 ---
 
 ## 10. Diagnostics and quality
 
-Classes: `Stats`, `Profiler`, `Benchmark`, `QualityGovernor`, `AndroidGc`.
+Classes: `Stats`, `Profiler`, `Benchmark`, `QualityGovernor`; `AndroidGc` (the Android GC counter).
 
 ### Profiler
 
@@ -1001,7 +1043,7 @@ Profiler profiler = new Profiler();                         // init()
 public void render(Renderer r) {
     r.clear(0f, 0f, 0f);
     // ... draw the scene ...
-    profiler.setGcCount(AndroidGc.count());                 // platform value (omit it in pure Java: GC shows 0)
+    profiler.setGcCount(AndroidGc.count());                 // platform value (Android; omit it elsewhere: GC shows 0)
     profiler.frame(engine.stats, r);                        // call LAST, after everything was drawn
     font.draw(batch, profiler.getText(), 8f, 8f);           // "FPS 60  TPS 60" / "DRAW 85  TRI 12400" / "GC 0"
 }
@@ -1010,7 +1052,8 @@ public void render(Renderer r) {
 - `getMaxDrawCalls()`, `getMaxTriangles()`: peaks since the start or `reset()`. `getGcCount()`: GC runs since the start or
   `reset()`.
 - The text is rebuilt only when a value changes.
-- `AndroidGc.count()` is the only class that touches `android.os.Debug`; the count is process-wide.
+- The GC count comes from the platform. On Android it is `AndroidGc.count()`, the only class that touches `android.os.Debug`;
+  the count is process-wide.
 
 A healthy game shows `GC 0` (or a number that does not grow) while playing: that is the proof that nothing allocates.
 
@@ -1081,7 +1124,7 @@ tool prints its usage with `-h`, `-help` or `--help`; started without arguments 
 | `make_camera_track.py keys.txt out.cam` | baked camera track | - |
 | `preview_level.py` | a picture of a model or level without a GPU | numpy, Pillow |
 | `gen_api_reference.py --write` | writes `docs/API.md` (`--check`: is it up to date) | - |
-| `make_icons.py --write` | Android launcher icons (48, 72, 96 px) of every app from `icon.png` | Pillow |
+| `make_icons.py --write` | Android launcher icons (48, 72, 96 px) of every demo from `icon.png` (the desktop jar takes `icon.png` as it is) | Pillow |
 | `pin_lwjgl.py CLASSES_DIR` | pins the LWJGL checksums into the desktop jar (needs a network) | - |
 
 ### Model converters
@@ -1170,18 +1213,21 @@ model, several models or a whole `.lvl`; `--fov` sets the field of view, `--size
 
 ## 12. Build and tests
 
-`build.sh` compiles everything, checks the API levels and runs all tests. Most checks need only a JDK.
+`build.sh` compiles the engine and both platform layers, checks the Android API levels and runs all tests. Most checks need only a
+JDK: the engine, the headless tests and the desktop layer are plain Java. The Android jars add checks for the Android layer.
 
 ```
-./build.sh                                   # no android.jar: core, plain-Java demo screens, most tests
+./build.sh                                   # JDK only: core, desktop layer, plain-Java demo screens, most tests
 ANDROID_JAR=/path/android-19/android.jar \
 ANDROID_API3=/path/android-3/android.jar \
 ANDROID_API5=/path/android-5/android.jar \
-ANDROID_API9=/path/android-9/android.jar ./build.sh
+ANDROID_API9=/path/android-9/android.jar \
+LWJGL_CP=/path/lwjgl.jar:/path/lwjgl-glfw.jar:... ./build.sh
 ```
 
 | Variable | Used for |
 |---|---|
+| `LWJGL_CP` | the LWJGL 3.3.6 jars (lwjgl, glfw, opengl, openal, stb) separated by `:`: the desktop window, OpenGL and sound classes compile against the real library; without it they are checked against signature stubs in `tests/lwjgl-stubs` |
 | `ANDROID_JAR` | any recent `android.jar`: compiles the platform layer and all demos, runs `Gles1FogTest`, the GLSL checks, the GL replay and `DemoSmokeTest` |
 | `ANDROID_API3` | a **genuine API 3 jar**: the core, the platform layer and all demos must compile against it with zero errors |
 | `ANDROID_API5` | proves that `MultiTouchHandler` compiles on API 5 (and, with API 3 given, that it does not compile on API 3) |
@@ -1190,12 +1236,13 @@ ANDROID_API9=/path/android-9/android.jar ./build.sh
 Check that a jar is really old: `javap -cp android.jar android.view.MotionEvent | grep getPointerCount` must print nothing
 for API 3 and 4.
 
-| Check | Android jar needed |
+| Check | Needs an Android jar |
 |---|---|
 | core compiles; `CoreTest`, `PhysicsTest`, `ContentTest`, `TownMapTest`, `PortMapTest`, `CameraTrackTest` | no |
 | `TownDemoTest`, `PortDemoTest`: the real assets and the real screens in plain Java with scripted taps | no |
 | `docs/API.md` is up to date; the sample camera track bakes and passes `CameraTrackTest` | no (Python) |
 | `PlatformTest` (settings, storage, touch, UI), `Gles2Test` (the shader backend on a recording GL) | no |
+| `DesktopTest` (platforms, links, download and checksums, cache, assets, storage, wav, png, shaders, input, icon); the desktop window, OpenGL and sound classes against the LWJGL stubs; the desktop demo | no |
 | `Gles1FogTest`, GLSL compilers, GL replay on Mesa, `DemoSmokeTest` (all demo screens, 4000 frames each) | yes |
 | API 3, 5 and 9 checks | yes (genuine jars) |
 
@@ -1211,97 +1258,35 @@ How the tests work:
   Mesa (zero GL errors).
 - **UI snapshots** (`tests/UiSnapshots.java`): a small CPU renderer draws the menu pages to check layouts.
 
-Not testable without a device: the real sound output, the multi-touch event stream, EGL context creation, bitmap decoding,
-driver quirks and real GPU speed. These are thin wrappers; the logic around them is tested. For a device problem collect the
-log lines with tag `skarph` (`GL_RENDERER=...`, `GL_VERSION=...`, `backend=...`, and the compiler log if the ES 2.0 backend
-failed).
+Not testable without a device or a window: the real sound output, the multi-touch event stream, EGL context and window
+creation, image decoding by the system, driver quirks and real GPU speed. These are thin wrappers; the logic around them is
+tested. For a device problem collect the log lines (Android: logcat tag `skarph`; desktop: the console lines that start with
+`skarph:`): `GL_RENDERER=...`, `GL_VERSION=...`, `backend=...`, and the compiler log if the ES 2.0 backend failed.
 
 ---
 
-## 13. Platform layer
+## 13. Platform layers
 
-Package `skarph.android` (`skarph-android/`). It implements `Assets`, `Audio`, `Storage`, input and both renderers on top
-of the platform APIs; everything else is in the core. To port the engine, write the equivalent of these classes for your
-platform: the core only needs a `Renderer`, an `Assets`, an `Audio`, a `Storage` and a thread that calls `Engine.frame()`
-and fills `engine.input`.
+A platform layer connects the engine core to one platform. The core needs only a `Renderer`, an `Assets`, an `Audio`, a `Storage`,
+a thread that calls `Engine.frame()` and fills `engine.input`, and calls to `Engine.pause()` / `resume()`. Everything else is in
+the core and is identical everywhere. To port the engine to another platform, write the equivalent of one column below.
 
-| Class | Role | API |
-|---|---|---|
-| `EngineView` | the `GLSurfaceView` that hosts the engine; installs `Assets`, `Audio`, `Storage` | 3 |
-| `AndroidVersion` | the API level without `SDK_INT` (parses `Build.VERSION.SDK`) | 1 |
-| `BitmapOptionsCompat` | turns off bitmap scaling (`inScaled`) by reflection where it exists | 3 |
-| `GLES1Renderer` | the fixed-pipeline backend (ES 1.0 / 1.1) | 3 |
-| `GLES2Renderer`, `GLES2Shaders`, `Gl2` | the shader backend: all logic is plain Java on the small `Gl2` interface | - |
-| `AndroidGl2`, `Gles2Setup` | `Gl2` on `android.opengl.GLES20`; asks for an ES 2.0 context | 9, isolated |
-| `GLES2SurfaceRenderer` | connects `GLSurfaceView` callbacks to `GLES2Renderer` | 3 |
-| `MultiTouchHandler` | multi-touch `MotionEvent` methods | 5, isolated |
-| `AndroidAssets`, `AndroidAudio`, `AndroidStorage`, `AndroidGc`, `AndroidLog`, `BitmapImageLoader`, `GlImage`, `GlImageLoader`, `GlLog` | services | 1 to 3 |
+### What a platform layer provides
 
-"Isolated" means the class is loaded only after a version check, so older devices never touch it.
+| Service | Engine side | Android (`skarph.android`) | Desktop (`skarph.desktop`) |
+|---|---|---|---|
+| Window and loop | `Engine.frame`, `pause`, `resume` | `EngineView` (a `GLSurfaceView`) | `Host` (a GLFW window) |
+| Rendering | `Renderer` | `GLES1Renderer`, `GLES2Renderer` | `GLES2Renderer` |
+| OpenGL calls of the ES 2.0 backend | `Gl2` | `AndroidGl2` (`android.opengl.GLES20`) | `LwjglGl2` (LWJGL, OpenGL 2.1+) |
+| Input | `InputQueue`, `InputEvent` | touch events, `MultiTouchHandler` | mouse as pointer 0, `DesktopInput` for keys and mouse look |
+| Assets | `Assets` | `AndroidAssets` | `DesktopAssets` |
+| Images | `GlImageLoader` | `BitmapImageLoader` | `ImageIoLoader` |
+| Audio | `Audio` | `AndroidAudio` | `OpenAlAudio` |
+| Storage | `Storage` | `AndroidStorage` | `DesktopStorage` |
+| Log | `GlLog` | `AndroidLog` (logcat) | `ConsoleLog` |
 
-### Supported versions
-
-| Feature | Minimum | Fallback |
-|---|---|---|
-| Core, ES 1.x renderer, sound, saving, single touch | API 3 (Android 1.5) | none needed |
-| Multi-touch (pointer ids), only `MultiTouchHandler` | API 5 (Android 2.0) | one finger |
-| ES 2.0 backend, `GLES20` buffer calls, only `AndroidGl2` + `Gles2Setup` | API 9 (Android 2.3) | OpenGL ES 1.x |
-| VBO mesh storage | OpenGL ES 1.1 hardware | client-side arrays |
-| Baked lightmaps | 2 texture units | dynamic light instead |
-
-API 3 is the lowest level: `GLSurfaceView`, which hosts the OpenGL surface, exists since Android 1.5. `AndroidVersion`
-and `BitmapOptionsCompat` replace the two API 4 members (`Build.VERSION.SDK_INT`, `BitmapFactory.Options.inScaled`).
-
-| Device | Backend | Touch |
-|---|---|---|
-| Android 1.5 - 1.6 (API 3 - 4) | ES 1.x | one finger |
-| Android 2.0 - 2.2 | ES 1.x | multi-touch |
-| Android 2.3+ with ES 2.0 | ES 2.0 (auto) | multi-touch; falls back to ES 1.x if the shaders fail |
-
-### EngineView
-
-```java
-EngineView view = new EngineView(context, engine);                          // BACKEND_AUTO
-EngineView view = new EngineView(context, engine, EngineView.BACKEND_GLES1);   // force the fixed pipeline
-EngineView view = new EngineView(context, engine, EngineView.BACKEND_GLES2);   // ES 2.0 if the device can
-view.getBackend();                              // BACKEND_GLES1 or BACKEND_GLES2: what is really used
-EngineView.isGles2Supported(context);           // true on API 9+ with ES 2.0
-view.onPause(); view.onResume(); view.destroy();    // forward from the Activity
-```
-
-- **AUTO** uses ES 2.0 on API 9 or newer when the device reports OpenGL ES 2.0, otherwise ES 1.x. Asking for ES 2.0 on a
-  device that cannot do it silently gives ES 1.x.
-- **Input:** multi-touch on API 5 and newer, one finger below.
-- `destroy()` releases the sound players; call it from `Activity.onDestroy()`.
-
-### Fallback when the shaders fail
-
-If the ES 2.0 shaders do not compile or link on some driver, the backend reports it **once** through
-`view.setBackendListener(...)` on the UI thread, stops drawing (it never throws) and the app can start again with
-`BACKEND_GLES1`. Switching backends means creating a new `Engine` and a new `EngineView` (all GPU resources belong to one
-renderer):
-
-```java
-private void startEngine(int backend) {
-    if (view != null) { view.onPause(); view.destroy(); }
-    Engine engine = new Engine();
-    engine.setScreen(new MyScreen(this));
-    EngineView v = new EngineView(this, engine, backend);
-    v.setBackendListener(this);
-    view = v;
-    setContentView(v);
-    if (resumed) v.onResume();
-}
-
-public void onBackendFailed(EngineView failed, String reason) {      // UI thread
-    if (failed != view) return;                                       // an old view, already replaced
-    saveBackend(EngineView.BACKEND_GLES1);                            // remember the choice
-    startEngine(EngineView.BACKEND_GLES1);
-}
-```
-
-A screen asks for a restart through a small interface of your own (`switchBackend(int)`, `isGles2Available()`,
-`getGcCount()`), which keeps the screen free of platform classes.
+Both platforms run the same `GLES2Renderer`, written in plain Java on top of `Gl2`; the ES 1.x renderer exists only on Android. The
+desktop layer is described in [14](#14-desktop-windows-linux-macos), the Android layer below.
 
 ### The ES 2.0 shader set
 
@@ -1331,10 +1316,96 @@ bind it. Billboards reuse the textured programs; sprites use client-side arrays.
 
 ---
 
+### Android
+
+Package `skarph.android` (`skarph-android/`). It implements the Android column of the table above; everything else is in the core.
+
+#### Classes
+
+| Class | Role | API |
+|---|---|---|
+| `EngineView` | the `GLSurfaceView` that hosts the engine; installs `Assets`, `Audio`, `Storage` | 3 |
+| `AndroidVersion` | the API level without `SDK_INT` (parses `Build.VERSION.SDK`) | 1 |
+| `BitmapOptionsCompat` | turns off bitmap scaling (`inScaled`) by reflection where it exists | 3 |
+| `GLES1Renderer` | the fixed-pipeline backend (ES 1.0 / 1.1) | 3 |
+| `GLES2Renderer`, `GLES2Shaders`, `Gl2` | the shader backend: all logic is plain Java on the small `Gl2` interface | - |
+| `AndroidGl2`, `Gles2Setup` | `Gl2` on `android.opengl.GLES20`; asks for an ES 2.0 context | 9, isolated |
+| `GLES2SurfaceRenderer` | connects `GLSurfaceView` callbacks to `GLES2Renderer` | 3 |
+| `MultiTouchHandler` | multi-touch `MotionEvent` methods | 5, isolated |
+| `AndroidAssets`, `AndroidAudio`, `AndroidStorage`, `AndroidGc`, `AndroidLog`, `BitmapImageLoader`, `GlImage`, `GlImageLoader`, `GlLog` | services | 1 to 3 |
+
+"Isolated" means the class is loaded only after a version check, so older devices never touch it.
+
+#### Supported versions
+
+| Feature | Minimum | Fallback |
+|---|---|---|
+| Core, ES 1.x renderer, sound, saving, single touch | API 3 (Android 1.5) | none needed |
+| Multi-touch (pointer ids), only `MultiTouchHandler` | API 5 (Android 2.0) | one finger |
+| ES 2.0 backend, `GLES20` buffer calls, only `AndroidGl2` + `Gles2Setup` | API 9 (Android 2.3) | OpenGL ES 1.x |
+| VBO mesh storage | OpenGL ES 1.1 hardware | client-side arrays |
+| Baked lightmaps | 2 texture units | dynamic light instead |
+
+API 3 is the lowest level: `GLSurfaceView`, which hosts the OpenGL surface, exists since Android 1.5. `AndroidVersion`
+and `BitmapOptionsCompat` replace the two API 4 members (`Build.VERSION.SDK_INT`, `BitmapFactory.Options.inScaled`).
+
+| Device | Backend | Touch |
+|---|---|---|
+| Android 1.5 - 1.6 (API 3 - 4) | ES 1.x | one finger |
+| Android 2.0 - 2.2 | ES 1.x | multi-touch |
+| Android 2.3+ with ES 2.0 | ES 2.0 (auto) | multi-touch; falls back to ES 1.x if the shaders fail |
+
+#### EngineView
+
+```java
+EngineView view = new EngineView(context, engine);                          // BACKEND_AUTO
+EngineView view = new EngineView(context, engine, EngineView.BACKEND_GLES1);   // force the fixed pipeline
+EngineView view = new EngineView(context, engine, EngineView.BACKEND_GLES2);   // ES 2.0 if the device can
+view.getBackend();                              // BACKEND_GLES1 or BACKEND_GLES2: what is really used
+EngineView.isGles2Supported(context);           // true on API 9+ with ES 2.0
+view.onPause(); view.onResume(); view.destroy();    // forward from the Activity
+```
+
+- **AUTO** uses ES 2.0 on API 9 or newer when the device reports OpenGL ES 2.0, otherwise ES 1.x. Asking for ES 2.0 on a
+  device that cannot do it silently gives ES 1.x.
+- **Input:** multi-touch on API 5 and newer, one finger below.
+- `destroy()` releases the sound players; call it from `Activity.onDestroy()`.
+
+#### Fallback when the shaders fail
+
+If the ES 2.0 shaders do not compile or link on some driver, the backend reports it **once** through
+`view.setBackendListener(...)` on the UI thread, stops drawing (it never throws) and the app can start again with
+`BACKEND_GLES1`. Switching backends means creating a new `Engine` and a new `EngineView` (all GPU resources belong to one
+renderer):
+
+```java
+private void startEngine(int backend) {
+    if (view != null) { view.onPause(); view.destroy(); }
+    Engine engine = new Engine();
+    engine.setScreen(new MyScreen(this));
+    EngineView v = new EngineView(this, engine, backend);
+    v.setBackendListener(this);
+    view = v;
+    setContentView(v);
+    if (resumed) v.onResume();
+}
+
+public void onBackendFailed(EngineView failed, String reason) {      // UI thread
+    if (failed != view) return;                                       // an old view, already replaced
+    saveBackend(EngineView.BACKEND_GLES1);                            // remember the choice
+    startEngine(EngineView.BACKEND_GLES1);
+}
+```
+
+A screen asks for a restart through a small interface of your own (`switchBackend(int)`, `isGles2Available()`,
+`getGcCount()`), which keeps the screen free of platform classes.
+
+---
+
 ## 14. Desktop: Windows, Linux, macOS
 
 `skarph-desktop/` runs a game on the desktop from **one portable jar** (`java -jar game.jar`, Java 8 or newer). The engine
-core and the OpenGL ES 2.0 renderer are the same as on Android: the renderer is plain Java on top of `Gl2`, and the
+core and the OpenGL ES 2.0 renderer are shared with the Android layer: the renderer is plain Java on top of `Gl2`, and the
 desktop layer implements `Gl2` with LWJGL 3 on desktop OpenGL 2.1+. The desktop has this one backend (no ES 1.x).
 
 | System | CPUs |
@@ -1390,8 +1461,8 @@ public final class MyGame implements Game {
 The script needs a JDK and the network once (it fetches the LWJGL jars it compiles against; `LWJGL_CP=...` uses jars you have).
 The jar gets the engine, the desktop layer, your classes and the assets (inside the jar, under `assets/`), and the manifest
 entries `Main-Class: skarph.desktop.Launcher` and `Skarph-Game: my.package.MyGame`. Without the manifest entry: `--game=my.package.MyGame`.
-`./build-desktop.sh` without arguments builds the maze game jar (`build/desktop/the-maze.jar`) when the `game/` folder is there, and the
-demo-v1.0 jar (`build/desktop/skarph-demo-v1.0.jar`) when it is not; the header of the script shows the command for any other program.
+`./build-desktop.sh` without arguments only prints its help; the header of the script also shows the full command that builds the
+demo-v1.0 jar (`build/desktop/skarph-demo-v1.0.jar`).
 
 The script compiles with `--release 8` when the JDK supports it, so that a jar built on a newer JDK also starts on Java 8.
 Source files that import `android.*` (the Activity launchers) are left out of the jar.
@@ -1422,8 +1493,8 @@ float dy = input.takeMouseDy();         // down = positive
 
 While the cursor is captured the left button gives no touch events (a locked cursor has no position); with a free cursor the
 mouse is pointer 0 as before, so menus keep working. The change is applied after the frame in which it was asked. Raw mouse motion
-(no system acceleration) is used when the system supports it. A window that loses the focus releases all keys. Keep the game itself
-free of key codes: the maze game reads a small `Pad` interface and only `DesktopPad` knows the keys.
+(no system acceleration) is used when the system supports it. A window that loses the focus releases all keys. Keep the game logic
+free of key codes: let it read a small input interface of your own and let one desktop class map the keys to it.
 
 ### What the desktop layer does
 
@@ -1434,7 +1505,7 @@ free of key codes: the maze game reads a small `Pad` interface and only `Desktop
 | Life cycle | Minimizing and closing call `Engine.pause()` (the screen saves its settings), restoring calls `resume()`. |
 | Assets | Looked up in `-Dskarph.assets=FOLDER`, then in the jar (`assets/`), then in `./assets`. Paths cannot leave the assets folder. |
 | Storage | Files in the application data folder: `%APPDATA%\NAME`, `~/.local/share/NAME`, `~/Library/Application Support/NAME`. A save goes to a temporary file first. |
-| Images | PNG through ImageIO, uploaded as RGBA (not premultiplied). Sizes must be powers of two, as on Android. |
+| Images | PNG through ImageIO, uploaded as RGBA (not premultiplied). Sizes must be powers of two, as everywhere in the engine. |
 | Sound | OpenAL: `.wav` (PCM) and `.ogg` (Vorbis). `.mp3` is not supported. Effects: 32 voices. Music is decoded on a background thread and starts a moment later. No sound device: the game runs silent. |
 | macOS | GLFW needs the first thread, so the jar starts a second Java process with `-XstartOnFirstThread` by itself. |
 

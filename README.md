@@ -36,7 +36,7 @@ the extra checks are described at the top of `build.sh`.
 
 Android: add `skarph-core/src` and `skarph-android/src` to the project, see [docs/MANUAL.md](docs/MANUAL.md), section 2.
 
-Desktop: `./build-desktop.sh` builds one jar that runs with `java -jar` on Windows, Linux and macOS (Java 8 or newer).
+Desktop: `./build-desktop.sh` (without arguments it only prints its help) builds one jar that runs with `java -jar` on Windows, Linux and macOS (Java 8 or newer).
 See [docs/MANUAL.md](docs/MANUAL.md), section 14.
 
 ## License

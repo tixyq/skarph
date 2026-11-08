@@ -150,13 +150,3 @@ if [ -n "$LWJGL_CP" ]; then
   mkdir -p $OUT/hosts-real
   javac -nowarn -source 8 -target 8 -cp "$OUT/core:$OUT/android:$OUT/desktop:$LWJGL_CP" -d $OUT/hosts-real skarph-desktop/src/skarph/desktop/host/*.java
 fi
-
-if [ -d game/src ]; then   # the game is optional
-  echo "== the maze game (plain Java): touch and desktop controls, headless; desktop start"
-  mkdir -p $OUT/maze
-  MAZE=$(find game/src -name '*.java' | xargs grep -L '^import android\.')   # GameActivity needs android.jar
-  javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/tests:$OUT/desktop -d $OUT/maze $MAZE game/desktop/*.java \
-      game/tests/MazeGameTest.java game/tests/MazeDesktopTest.java
-  java -cp $OUT/core:$OUT/tests:$OUT/maze MazeGameTest
-  java -cp $OUT/core:$OUT/tests:$OUT/desktop:$OUT/maze MazeDesktopTest
-fi

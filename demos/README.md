@@ -1,7 +1,9 @@
 # Demos
 
-Example programs, one per engine version. Each folder has `src/`, `res/` (the app icon), `assets/` (if the demo needs files) and
-`AndroidManifest.xml`. This is the only place that tracks which version added what.
+Example programs, one per engine version. The screens in `src/` are plain Java on the engine and know no platform, so every demo
+runs on every platform the engine supports. Each folder also has `assets/` (if the demo needs files) and the Android launcher:
+`DemoActivity`, `AndroidManifest.xml` and `res/` (the app icon). demo-v1.0 has a desktop launcher as well. This is the only place
+that tracks which version added what.
 
 | Demo | Topic | New in the engine |
 |---|---|---|
@@ -17,16 +19,19 @@ Example programs, one per engine version. Each folder has `src/`, `res/` (the ap
 
 ## Running a demo
 
+**Desktop** (Windows, Linux, macOS; demo-v1.0): the command at the top of `build-desktop.sh` (run it without arguments to see it) builds one portable jar,
+`java -jar build/desktop/skarph-demo-v1.0.jar` runs it (`demos/demo-v1.0/desktop/DesktopDemo.java`, the same screen as on Android;
+manual section 14). The mouse acts as one finger.
+
+**Android** (any demo):
+
 1. Create a project with `minSdkVersion` 3 (landscape for 0.8 and 1.0, see the demo manifest).
 2. Add the sources of `skarph-core/src`, `skarph-android/src` and `demos/demo-vX.Y/src`.
 3. Copy **all** files of `demos/demo-vX.Y/assets` into the app `assets` folder.
 4. Copy `demos/demo-vX.Y/res` into the app `res` folder (the Skarph icon, 48 / 72 / 96 px).
 5. Use `demos/demo-vX.Y/AndroidManifest.xml`.
 
-**Desktop** (demo-v1.0): `./build-desktop.sh` in the project folder builds one portable jar, `java -jar build/desktop/skarph-demo-v1.0.jar`
-runs it on Windows, Linux and macOS (`demos/demo-v1.0/desktop/DesktopDemo.java`, the same screen as on Android; manual section 14).
-
-Without a device, the plain-Java parts of the demos run headless in `build.sh` (`TownDemoTest`, `PortDemoTest`,
+Without a device or a window, the plain-Java parts of the demos run headless in `build.sh` (`TownDemoTest`, `PortDemoTest`,
 `DemoSmokeTest`).
 
 ## demo-v0.1
@@ -37,9 +42,9 @@ Tests:
 
 - Tick loop: the cubes move per tick, so the speed is the same at any FPS.
 - `Mat4` transforms, `Shapes.cube`, `Renderer.drawMesh`.
-- Touch input through `engine.input`; `Engine.stats` (FPS / TPS in logcat, tag `skarph`).
+- Touch input through `engine.input`; `Engine.stats` (FPS / TPS in the platform log: logcat on Android, tag `skarph`).
 
-On screen: One big cube spinning at 60 degrees per second with 8 small cubes orbiting it. Drag to rotate the big cube. logcat shows `fps=.. tps=60`.
+On screen: One big cube spinning at 60 degrees per second with 8 small cubes orbiting it. Drag to rotate the big cube. The platform log shows `fps=.. tps=60`.
 
 ## demo-v0.2
 
@@ -112,7 +117,7 @@ Tests:
 - `EngineView.BACKEND_AUTO / GLES1 / GLES2`, `BackendListener` fallback if the shaders fail.
 - Per-pixel light (ES 2.0) vs per-vertex light (ES 1.x) on statues and balls.
 
-On screen: Same scene as v0.5. The fourth button restarts the demo with the other backend (`GLES 2 N/A` on devices without ES 2.0). The choice is saved.
+On screen: Same scene as v0.5. The fourth button restarts the demo with the other backend (`GLES 2 N/A` on devices without ES 2.0). The choice is saved. Android only: the desktop has the ES 2.0 backend alone.
 
 ## demo-v0.8
 
