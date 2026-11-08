@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Bakes a camera track (format CAM1, see skarph.core.CameraTrack): ONE pose per tick, 60 ticks per second.
 The engine does no interpolation, so all smoothing happens here.
 

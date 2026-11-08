@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 # Records the GL calls of the real backends demo (GLES2Renderer, real assets) and plays them back on Mesa
 # (headless EGL): no GL error, no shader error is allowed. Saves two frames as PNG into build/replay.
 # Needs: build/android + build/tests (run build.sh first), gcc, EGL + GLES2 headers, Python with Pillow (for the PNGs).

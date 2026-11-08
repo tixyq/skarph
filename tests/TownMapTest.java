@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 import skarph.core.*;
 
 /** Loads the generated town demo map (args[0] = assets folder) the way the demo will and checks its limits. */

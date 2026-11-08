@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 package skarph.desktop;
 
 /** Tells the person what the first start is doing. */

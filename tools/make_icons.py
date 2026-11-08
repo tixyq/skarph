@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Makes the Android launcher icons (48, 72 and 96 px) of every app from the project's icon.png.
 
     python3 tools/make_icons.py --write    writes demos/*/res/drawable*/icon.png and game/res/drawable*/icon.png

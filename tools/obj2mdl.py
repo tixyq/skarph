@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Converts a Wavefront OBJ (with optional MTL) into the engine model format.
 
 usage: obj2mdl.py input.obj output.mdl [--scale S] [--diffuse name.png] [--lightmap name.png]

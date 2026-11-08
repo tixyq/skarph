@@ -53,13 +53,15 @@ engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQue
 | Folder | Content |
 |---|---|
 | `skarph-core/` | the pure Java engine (`skarph.core`) |
-| `skarph-android/` | the platform layer (`skarph.android`) |
-| `skarph-desktop/` | the desktop layer (`skarph.desktop`): one portable jar for Windows, Linux, macOS |
+| `skarph-android/` | the platform layer for Android (`skarph.android`) |
+| `skarph-desktop/` | the platform layer for Windows, Linux and macOS (`skarph.desktop`) |
 | `demos/` | example programs, see [demos/README.md](../demos/README.md) |
 | `tools/` | Python tools: converters, lightmap baker, camera tracks, level preview |
 | `tests/` | headless tests |
 | `docs/` | this manual and the API reference |
+| `icon.png` | the icon of every platform |
 | `build.sh` | compiles, checks API levels, runs all tests |
+| `build-desktop.sh` | builds a portable jar for Windows, Linux and macOS |
 
 ---
 

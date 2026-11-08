@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 # Real GLSL compiler checks of every shader variant. Needs: build/android (compiled engine), and optionally
 #   glslangValidator          reference compiler, GLSL ES 1.00 rules
 #   gcc + libEGL + libGLESv2  Mesa (llvmpipe) headless EGL: compile, link and RENDER every variant, compare colors

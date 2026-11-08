@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Generates docs/API.md: every public class of skarph-core / skarph-android with its public
 constructors, methods and fields, and the first sentence of their Javadoc. Plain Python 3, no packages.
 

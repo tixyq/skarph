@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 package skarph.desktop;
 
 /** Reads .wav files (PCM 8, 16, 24 or 32 bit, or 32 bit float; mono or stereo) into 16 bit samples. Pure Java. */

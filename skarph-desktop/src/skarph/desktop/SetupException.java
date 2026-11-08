@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 package skarph.desktop;
 
 /** The libraries could not be prepared. The message is written for the person who runs the program. */

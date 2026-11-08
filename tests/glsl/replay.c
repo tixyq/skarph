@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 /* Plays a GL trace recorded by TraceDemo on a real OpenGL ES 2.0 implementation (Mesa llvmpipe, headless EGL).
  * Reports compile/link errors and GL errors, writes chosen frames as PPM.
  * usage: replay <trace> <out prefix> [frame numbers to save...]   (frame numbers start at 1) */

@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 /* Compiles, links and RENDERS every shader variant of the engine on a real GLSL ES compiler (Mesa llvmpipe,
  * headless EGL) and compares the output color with the expected value computed on the CPU.
  * usage: harness <shader dir>   (files written by DumpShaders) */

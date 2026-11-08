@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 package skarph.core;
 
 /** Fixed-capacity list of ints (no boxing, no allocation after construction). */

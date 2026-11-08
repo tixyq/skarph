@@ -1,4 +1,4 @@
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Builds a level out of axis-aligned boxes and BAKES its lighting into a lightmap. numpy + Pillow.
 
     bake_level.py level.txt out.mdl [--diffuse stone.png] [--lightmap out_lm.png] [--tile 2.0] [--density 3.0]

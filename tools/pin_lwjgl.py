@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Writes skarph-desktop/res/skarph/desktop/lwjgl-VERSION.sha1: the SHA-1 of every LWJGL file for every supported system.
 
 Needs a network. Takes the list of files from the program itself (java skarph.desktop.PrintUrls), downloads each file,

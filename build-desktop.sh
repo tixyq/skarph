@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 # Builds ONE portable jar that runs on Windows, Linux and macOS (java -jar NAME.jar, Java 8 or newer).
 #
 #   ./build-desktop.sh                                   the maze game -> build/desktop/the-maze.jar (if the game/ folder is there),

@@ -1,4 +1,4 @@
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Lightmap baker for big maps: a terrain height map and building models. numpy + Pillow.
 
 The engine has no real time shadows: sun shadows, soft penumbra, sky occlusion and contact darkening are all baked here.

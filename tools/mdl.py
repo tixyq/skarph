@@ -1,4 +1,4 @@
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Reader and writer for the binary model format MDL1 (see skarph.core.ModelFormat for the layout). No packages needed."""
 import struct
 

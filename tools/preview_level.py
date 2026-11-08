@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 """Software preview of a lightmapped model (no GPU needed): renders it the way the engine does
 (diffuse texture x lightmap, back faces culled) from an orbit-style camera and writes a PNG.
 

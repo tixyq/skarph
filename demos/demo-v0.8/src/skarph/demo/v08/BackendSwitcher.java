@@ -1,4 +1,4 @@
-// Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+// Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 package skarph.demo.v08;
 
 /** What the demo screen needs from the Activity. Plain Java: the screen itself never touches android.*. */

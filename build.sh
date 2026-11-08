@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
+# Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 # Compiles everything, checks the platform API levels and runs the tests.
 #
 #   ./build.sh                    needs only a JDK: core, plain-Java demo screens, most tests
