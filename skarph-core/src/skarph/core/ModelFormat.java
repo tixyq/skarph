@@ -1,6 +1,7 @@
 // Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
 package skarph.core;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -41,7 +42,7 @@ public final class ModelFormat {
         if (data[0] != 'M' || data[1] != 'D' || data[2] != 'L' || data[3] != '1') {
             throw new IllegalArgumentException("not a model file (bad magic)");
         }
-        bb.position(4);
+        ((Buffer) bb).position(4);
         int vc = bb.getInt();
         int ic = bb.getInt();
         int flags = bb.getInt();
@@ -74,13 +75,13 @@ public final class ModelFormat {
 
         float[] positions = new float[vc * 3];
         bb.asFloatBuffer().get(positions);
-        bb.position(bb.position() + vc * 12);
+        ((Buffer) bb).position(bb.position() + vc * 12);
 
         float[] normals = null;
         if ((flags & FLAG_NORMALS) != 0) {
             normals = new float[vc * 3];
             bb.asFloatBuffer().get(normals);
-            bb.position(bb.position() + vc * 12);
+            ((Buffer) bb).position(bb.position() + vc * 12);
         }
 
         float[] colors = new float[vc * 4];
@@ -98,13 +99,13 @@ public final class ModelFormat {
         if ((flags & FLAG_UV0) != 0) {
             uv0 = new float[vc * 2];
             bb.asFloatBuffer().get(uv0);
-            bb.position(bb.position() + vc * 8);
+            ((Buffer) bb).position(bb.position() + vc * 8);
         }
         float[] uv1 = null;
         if ((flags & FLAG_UV1) != 0) {
             uv1 = new float[vc * 2];
             bb.asFloatBuffer().get(uv1);
-            bb.position(bb.position() + vc * 8);
+            ((Buffer) bb).position(bb.position() + vc * 8);
         }
 
         short[] indices = new short[ic];
@@ -136,7 +137,7 @@ public final class ModelFormat {
         }
         byte[] raw = new byte[len];
         bb.get(raw);
-        bb.position(bb.position() + (padded - len));
+        ((Buffer) bb).position(bb.position() + (padded - len));
         try {
             return new String(raw, "UTF-8");
         } catch (java.io.UnsupportedEncodingException e) {

@@ -3,8 +3,9 @@
 """Generates docs/API.md: every public class of skarph-core / skarph-android with its public
 constructors, methods and fields, and the first sentence of their Javadoc. Plain Python 3, no packages.
 
-    python3 tools/gen_api_reference.py            (writes docs/API.md)
-    python3 tools/gen_api_reference.py --check    (exit 1 when the file is out of date; build.sh runs it)
+    python3 tools/gen_api_reference.py --write    writes docs/API.md
+    python3 tools/gen_api_reference.py --check    exit 1 when the file is out of date (build.sh runs it)
+    python3 tools/gen_api_reference.py            without arguments (or -h, -help, --help): only this help
 """
 import os
 import re
@@ -147,11 +148,14 @@ def build():
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] not in (["--write"], ["--check"]):
+        print(__doc__)
+        sys.exit(0 if len(sys.argv) == 1 or sys.argv[1] in ("-h", "-help", "--help") else 2)
     text = build()
     if "--check" in sys.argv:
         cur = open(OUT, encoding="utf-8").read() if os.path.exists(OUT) else ""
         if cur != text:
-            print("docs/API.md is out of date: run python3 tools/gen_api_reference.py")
+            print("docs/API.md is out of date: run python3 tools/gen_api_reference.py --write")
             sys.exit(1)
         print("   ok: docs/API.md is up to date")
     else:

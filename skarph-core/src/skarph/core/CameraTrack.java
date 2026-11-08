@@ -1,6 +1,7 @@
 // Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
 package skarph.core;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -83,7 +84,7 @@ public final class CameraTrack {
             throw new IllegalArgumentException("not a camera track (bad magic)");
         }
         ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
-        bb.position(4);
+        ((Buffer) bb).position(4);
         int n = bb.getInt();
         if (n < 1 || n > MAX_TICKS) {
             throw new IllegalArgumentException("bad tick count " + n);

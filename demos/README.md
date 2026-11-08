@@ -23,6 +23,9 @@ Example programs, one per engine version. Each folder has `src/`, `res/` (the ap
 4. Copy `demos/demo-vX.Y/res` into the app `res` folder (the Skarph icon, 48 / 72 / 96 px).
 5. Use `demos/demo-vX.Y/AndroidManifest.xml`.
 
+**Desktop** (demo-v1.0): `./build-desktop.sh` in the project folder builds one portable jar, `java -jar build/desktop/skarph-demo-v1.0.jar`
+runs it on Windows, Linux and macOS (`demos/demo-v1.0/desktop/DesktopDemo.java`, the same screen as on Android; manual section 14).
+
 Without a device, the plain-Java parts of the demos run headless in `build.sh` (`TownDemoTest`, `PortDemoTest`,
 `DemoSmokeTest`).
 

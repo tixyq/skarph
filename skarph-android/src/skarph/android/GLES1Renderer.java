@@ -145,7 +145,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
             quadIndices.put(b).put((short) (b + 1)).put((short) (b + 2));
             quadIndices.put(b).put((short) (b + 2)).put((short) (b + 3));
         }
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         billboardBuffer = ByteBuffer.allocateDirect(MAX_BILLBOARDS * 4 * BB_STRIDE)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
     }
@@ -254,7 +254,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
         uv1[id] = data.uv1 != null ? floatBuffer(data.uv1) : null;
         ShortBuffer ib = ByteBuffer.allocateDirect(data.indices.length * 2)
                 .order(ByteOrder.nativeOrder()).asShortBuffer();
-        ib.put(data.indices).position(0);
+        ((Buffer) ib.put(data.indices)).position(0);
         indices[id] = ib;
 
         meshHasNormals[id] = data.normals != null;
@@ -271,7 +271,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
     private static FloatBuffer floatBuffer(float[] src) {
         FloatBuffer fb = ByteBuffer.allocateDirect(src.length * 4)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
-        fb.put(src).position(0);
+        ((Buffer) fb.put(src)).position(0);
         return fb;
     }
 
@@ -675,7 +675,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
 
     private int upload(GL11 g, int target, Buffer data, int bytesPerElement) {
         int bufferId = genBuffer(g);
-        data.position(0);
+        ((Buffer) data).position(0);
         g.glBindBuffer(target, bufferId);
         g.glBufferData(target, data.capacity() * bytesPerElement, data, GL11.GL_STATIC_DRAW);
         return bufferId;
@@ -715,7 +715,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
         boundMesh = -1;
         setFogState(false); // sprites are never fogged
 
-        quadVertices.clear();
+        ((Buffer) quadVertices).clear();
         quadVertices.put(vertices, 0, quadCount * 4 * Renderer.QUAD_FLOATS_PER_VERTEX);
 
         gl.glDisable(GL10.GL_DEPTH_TEST);
@@ -726,14 +726,14 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
         gl.glBindTexture(GL10.GL_TEXTURE_2D, textureGlIds[texture]);
         gl.glEnableClientState(GL10.GL_TEXTURE_COORD_ARRAY);
 
-        quadVertices.position(0);
+        ((Buffer) quadVertices).position(0);
         gl.glVertexPointer(2, GL10.GL_FLOAT, QUAD_STRIDE, quadVertices);
-        quadVertices.position(2);
+        ((Buffer) quadVertices).position(2);
         gl.glTexCoordPointer(2, GL10.GL_FLOAT, QUAD_STRIDE, quadVertices);
-        quadVertices.position(4);
+        ((Buffer) quadVertices).position(4);
         gl.glColorPointer(4, GL10.GL_FLOAT, QUAD_STRIDE, quadVertices);
 
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         gl.glDrawElements(GL10.GL_TRIANGLES, quadCount * 6,
                 GL10.GL_UNSIGNED_SHORT, quadIndices);
         drawCalls++;
@@ -756,7 +756,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
             count = MAX_BILLBOARDS;
         }
         Billboards.expand(data, count, camView, billboardVertices);
-        billboardBuffer.clear();
+        ((Buffer) billboardBuffer).clear();
         billboardBuffer.put(billboardVertices, 0, count * 4 * Billboards.VERTEX_FLOATS);
 
         if (vboBound) {
@@ -780,14 +780,14 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
         gl.glBindTexture(GL10.GL_TEXTURE_2D, textureGlIds[texture]);
         gl.glEnableClientState(GL10.GL_TEXTURE_COORD_ARRAY);
 
-        billboardBuffer.position(0);
+        ((Buffer) billboardBuffer).position(0);
         gl.glVertexPointer(3, GL10.GL_FLOAT, BB_STRIDE, billboardBuffer);
-        billboardBuffer.position(3);
+        ((Buffer) billboardBuffer).position(3);
         gl.glTexCoordPointer(2, GL10.GL_FLOAT, BB_STRIDE, billboardBuffer);
-        billboardBuffer.position(5);
+        ((Buffer) billboardBuffer).position(5);
         gl.glColorPointer(4, GL10.GL_FLOAT, BB_STRIDE, billboardBuffer);
 
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         gl.glDrawElements(GL10.GL_TRIANGLES, count * 6, GL10.GL_UNSIGNED_SHORT, quadIndices);
         drawCalls++;
         triangles += count * 2;

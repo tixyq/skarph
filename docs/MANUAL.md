@@ -16,6 +16,7 @@ class and member is listed in [API.md](API.md).
 11. [Tools](#11-tools)
 12. [Build and tests](#12-build-and-tests)
 13. [Platform layer](#13-platform-layer)
+14. [Desktop: Windows, Linux, macOS](#14-desktop-windows-linux-macos)
 
 ---
 
@@ -53,6 +54,7 @@ engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQue
 |---|---|
 | `skarph-core/` | the pure Java engine (`skarph.core`) |
 | `skarph-android/` | the platform layer (`skarph.android`) |
+| `skarph-desktop/` | the desktop layer (`skarph.desktop`): one portable jar for Windows, Linux, macOS |
 | `demos/` | example programs, see [demos/README.md](../demos/README.md) |
 | `tools/` | Python tools: converters, lightmap baker, camera tracks, level preview |
 | `tests/` | headless tests |
@@ -1065,7 +1067,7 @@ if (gov.frame(engine.stats.nowNanos)) {                    // true = the level c
 ## 11. Tools
 
 Plain Python 3 in `tools/` (numpy and Pillow where noted). They run on a PC and write files that the engine loads. Every
-tool prints its usage with `-h`.
+tool prints its usage with `-h`, `-help` or `--help`; started without arguments it prints only that help.
 
 | Tool | Does | Needs |
 |---|---|---|
@@ -1076,7 +1078,9 @@ tool prints its usage with `-h`.
 | `bake_map.py terrain / model ...` | lightmap baker for a height map and for building models | numpy, Pillow |
 | `make_camera_track.py keys.txt out.cam` | baked camera track | - |
 | `preview_level.py` | a picture of a model or level without a GPU | numpy, Pillow |
-| `gen_api_reference.py` | writes `docs/API.md` | - |
+| `gen_api_reference.py --write` | writes `docs/API.md` (`--check`: is it up to date) | - |
+| `make_icons.py --write` | Android launcher icons (48, 72, 96 px) of every app from `icon.png` | Pillow |
+| `pin_lwjgl.py CLASSES_DIR` | pins the LWJGL checksums into the desktop jar (needs a network) | - |
 
 ### Model converters
 
@@ -1322,3 +1326,117 @@ bind it. Billboards reuse the textured programs; sprites use client-side arrays.
 - Mipmaps for tiled textures only on ES 1.1. Lightmaps need two texture units.
 - At start the renderer logs `GL_RENDERER` and `GL_VERSION` (tag `skarph`).
 - Context loss (the app goes to the background): meshes, textures and VBOs are rebuilt by themselves; handles stay valid.
+
+---
+
+## 14. Desktop: Windows, Linux, macOS
+
+`skarph-desktop/` runs a game on the desktop from **one portable jar** (`java -jar game.jar`, Java 8 or newer). The engine
+core and the OpenGL ES 2.0 renderer are the same as on Android: the renderer is plain Java on top of `Gl2`, and the
+desktop layer implements `Gl2` with LWJGL 3 on desktop OpenGL 2.1+. The desktop has this one backend (no ES 1.x).
+
+| System | CPUs |
+|---|---|
+| Windows | x64, x86, arm64 |
+| Linux | x64, arm64, arm32 |
+| macOS | x64 (Intel), arm64 (Apple silicon). Not tested by the author |
+
+### First start
+
+The jar does **not** contain LWJGL. On the first start it downloads the LWJGL jars and the native libraries of the system it
+runs on (a few MB; a small window shows the progress, or lines on the console), checks them and keeps them in a cache
+folder shared by all Skarph programs, so later starts need no network:
+
+| System | Cache folder |
+|---|---|
+| Windows | `%LOCALAPPDATA%\skarph` |
+| Linux | `$XDG_CACHE_HOME/skarph` or `~/.cache/skarph` |
+| macOS | `~/Library/Caches/skarph` |
+
+The cache can be deleted at any time. `-Dskarph.cache=FOLDER` uses another one.
+
+**The links cannot rot.** No URL is typed anywhere: `Libraries` builds every address from (module, version, system) in the
+layout of Maven Central, and Maven Central never changes or removes a released file. Every file is tried on three mirrors
+(`repo1.maven.org`, `repo.maven.apache.org`, Google's mirror of Central) and accepted only with the right SHA-1 sum: a
+damaged, cut-off or substituted file is dropped and the next mirror is tried. With `tools/pin_lwjgl.py` the sums are pinned into the
+jar (otherwise the `.sha1` that Central publishes next to each file is used). `java -jar game.jar --check-links` asks every
+mirror for every file of every system and reports what is unreachable, run it in your release checklist.
+
+**Offline.** Put the ten files of the system (names as in `--check-links`, or take them from the cache) into a folder
+`skarph-libs` next to the jar, or use `-Dskarph.libs=FOLDER`: they are used instead of a download. `--setup-only` prepares
+the cache and exits (for an installer). `-Dskarph.mirror=URL` tries your own Maven mirror first (also the environment variable `SKARPH_MIRROR`).
+
+### Making a game
+
+```java
+public final class MyGame implements Game {
+    public GameConfig config() {
+        GameConfig c = new GameConfig();
+        c.title = "My game"; c.width = 1280; c.height = 720; c.appName = "my-game"; // appName: folder of the saves
+        return c;
+    }
+    public Screen createScreen(Engine engine) { return new MyScreen(); }
+}
+```
+
+`GameConfig` also has `fullscreen`, `vsync` (also `-Dskarph.vsync=false`), `escapeCloses` and `fpsInTitle`. Build the jar:
+
+```
+./build-desktop.sh my.package.MyGame "src/dir1 src/dir2" assets/ build/my-game.jar "My game"
+```
+
+The script needs a JDK and the network once (it fetches the LWJGL jars it compiles against; `LWJGL_CP=...` uses jars you have).
+The jar gets the engine, the desktop layer, your classes and the assets (inside the jar, under `assets/`), and the manifest
+entries `Main-Class: skarph.desktop.Launcher` and `Skarph-Game: my.package.MyGame`. Without the manifest entry: `--game=my.package.MyGame`.
+`./build-desktop.sh` without arguments builds the maze game jar (`build/desktop/the-maze.jar`) when the `game/` folder is there, and the
+demo-v1.0 jar (`build/desktop/skarph-demo-v1.0.jar`) when it is not; the header of the script shows the command for any other program.
+
+The script compiles with `--release 8` when the JDK supports it, so that a jar built on a newer JDK also starts on Java 8.
+Source files that import `android.*` (the Activity launchers) are left out of the jar.
+
+The window icon is `icon.png` from the project root. The build copies it into the jar; the game window, the task bar entry and
+the start-up window use it at 256, 64, 32 and 16 pixels. The Android launcher icons (48, 72 and 96 px) are made from the same file
+with `python3 tools/make_icons.py --write`.
+
+### Keyboard and mouse look
+
+By default the mouse is one finger. A game that needs the keys or the mouse as a camera implements `InputAware` next to `Game`;
+the desktop layer then calls `setInput(DesktopInput)` before `createScreen`:
+
+```java
+public final class MyGame implements Game, InputAware {
+    private DesktopInput input;
+    public void setInput(DesktopInput input) { this.input = input; }
+    ...
+}
+```
+
+```java
+input.isKeyDown(DesktopInput.KEY_W);   // GLFW key codes: physical keys, the same on every keyboard layout
+input.setCursorCaptured(true);          // hide and lock the cursor; false = a free cursor again
+float dx = input.takeMouseDx();         // movement since the last call, screen units, only while captured
+float dy = input.takeMouseDy();         // down = positive
+```
+
+While the cursor is captured the left button gives no touch events (a locked cursor has no position); with a free cursor the
+mouse is pointer 0 as before, so menus keep working. The change is applied after the frame in which it was asked. Raw mouse motion
+(no system acceleration) is used when the system supports it. A window that loses the focus releases all keys. Keep the game itself
+free of key codes: the maze game reads a small `Pad` interface and only `DesktopPad` knows the keys.
+
+### What the desktop layer does
+
+| Part | Behaviour |
+|---|---|
+| Window | GLFW window, centered; `F11` or `Alt+Enter` toggles full screen, `Escape` closes (`escapeCloses`). |
+| Input | The mouse is one finger: the left button is pointer 0 (DOWN, MOVE while pressed, UP), in framebuffer pixels (correct on high-DPI screens). Keys and mouse look for games that ask: see Keyboard and mouse look. |
+| Life cycle | Minimizing and closing call `Engine.pause()` (the screen saves its settings), restoring calls `resume()`. |
+| Assets | Looked up in `-Dskarph.assets=FOLDER`, then in the jar (`assets/`), then in `./assets`. Paths cannot leave the assets folder. |
+| Storage | Files in the application data folder: `%APPDATA%\NAME`, `~/.local/share/NAME`, `~/Library/Application Support/NAME`. A save goes to a temporary file first. |
+| Images | PNG through ImageIO, uploaded as RGBA (not premultiplied). Sizes must be powers of two, as on Android. |
+| Sound | OpenAL: `.wav` (PCM) and `.ogg` (Vorbis). `.mp3` is not supported. Effects: 32 voices. Music is decoded on a background thread and starts a moment later. No sound device: the game runs silent. |
+| macOS | GLFW needs the first thread, so the jar starts a second Java process with `-XstartOnFirstThread` by itself. |
+
+Limits: the desktop has no ES 1.x backend and no multi-touch; a graphics driver without OpenGL 2.0 stops the program with a message.
+Tests: `tests/DesktopTest.java` (platforms, links, download, checksums, cache, assets, storage, wav, png, shaders) runs in
+`build.sh` without a graphics card; the window, OpenGL and OpenAL classes need a real machine.
+

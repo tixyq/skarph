@@ -265,6 +265,10 @@ def main(argv=None):
     ap.add_argument("--diffuse", default="", help="diffuse texture name stored in the model (default: none)")
     ap.add_argument("--tile", type=float, default=TILE_SIZE, help="world units per repeat of the diffuse texture")
     ap.add_argument("--density", type=float, default=DENSITY, help="lightmap texels per world unit")
+    ap.add_argument("-help", action="help", help=argparse.SUPPRESS)
+    if not (sys.argv[1:] if argv is None else argv):
+        ap.print_help()
+        return 0
     a = ap.parse_args(argv)
     if a.tile <= 0 or a.density <= 0:
         ap.error("--tile and --density must be positive")

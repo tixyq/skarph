@@ -1,6 +1,7 @@
 // Copyright (C) 2026 tixyq. GPL-3.0-or-later with attribution term, see LICENSE.
 package skarph.android;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -145,7 +146,7 @@ public final class GLES2Renderer implements Renderer {
             quadIndices.put(b).put((short) (b + 1)).put((short) (b + 2));
             quadIndices.put(b).put((short) (b + 2)).put((short) (b + 3));
         }
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         billboardBuffer = ByteBuffer.allocateDirect(MAX_BILLBOARDS * 4 * BB_STRIDE)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
     }
@@ -476,10 +477,10 @@ public final class GLES2Renderer implements Renderer {
                 bb.putFloat(data.uv1[v * 2]).putFloat(data.uv1[v * 2 + 1]);
             }
         }
-        bb.position(0);
+        ((Buffer) bb).position(0);
         ShortBuffer ib = ByteBuffer.allocateDirect(data.indices.length * 2)
                 .order(ByteOrder.nativeOrder()).asShortBuffer();
-        ib.put(data.indices).position(0);
+        ((Buffer) ib.put(data.indices)).position(0);
 
         vertexData[id] = bb;
         indexData[id] = ib;
@@ -495,12 +496,12 @@ public final class GLES2Renderer implements Renderer {
 
     private void createBuffers(int id) {
         ByteBuffer vb = vertexData[id];
-        vb.position(0);
+        ((Buffer) vb).position(0);
         vbo[id] = gl.genBuffer();
         gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, vbo[id]);
         gl.bufferData(Gl2.GL_ARRAY_BUFFER, vb.capacity(), vb, Gl2.GL_STATIC_DRAW);
         ShortBuffer ix = indexData[id];
-        ix.position(0);
+        ((Buffer) ix).position(0);
         ibo[id] = gl.genBuffer();
         gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, ibo[id]);
         gl.bufferData(Gl2.GL_ELEMENT_ARRAY_BUFFER, ix.capacity() * 2, ix, Gl2.GL_STATIC_DRAW);
@@ -647,7 +648,7 @@ public final class GLES2Renderer implements Renderer {
         if (!useProgram(SPRITE)) {
             return;
         }
-        quadVertices.clear();
+        ((Buffer) quadVertices).clear();
         quadVertices.put(vertices, 0, quadCount * 4 * Renderer.QUAD_FLOATS_PER_VERTEX);
 
         gl.uniformMatrix4fv(locMvp[SPRITE], viewProj.m);
@@ -661,18 +662,18 @@ public final class GLES2Renderer implements Renderer {
         gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, 0);
 
         attrib(GLES2Shaders.ATTR_POS, true);
-        quadVertices.position(0);
+        ((Buffer) quadVertices).position(0);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_POS, 2, Gl2.GL_FLOAT, false, QUAD_STRIDE, quadVertices);
         attrib(GLES2Shaders.ATTR_UV0, true);
-        quadVertices.position(2);
+        ((Buffer) quadVertices).position(2);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_UV0, 2, Gl2.GL_FLOAT, false, QUAD_STRIDE, quadVertices);
         attrib(GLES2Shaders.ATTR_COLOR, true);
-        quadVertices.position(4);
+        ((Buffer) quadVertices).position(4);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_COLOR, 4, Gl2.GL_FLOAT, false, QUAD_STRIDE, quadVertices);
         attrib(GLES2Shaders.ATTR_NORMAL, false);
         attrib(GLES2Shaders.ATTR_UV1, false);
 
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         gl.drawElements(Gl2.GL_TRIANGLES, quadCount * 6, Gl2.GL_UNSIGNED_SHORT, quadIndices);
         drawCalls++;
         triangles += quadCount * 2;
@@ -697,7 +698,7 @@ public final class GLES2Renderer implements Renderer {
             return;
         }
         Billboards.expand(data, count, viewMatrix.m, billboardVertices);
-        billboardBuffer.clear();
+        ((Buffer) billboardBuffer).clear();
         billboardBuffer.put(billboardVertices, 0, count * 4 * Billboards.VERTEX_FLOATS);
 
         gl.uniformMatrix4fv(locMvp[features], viewProj.m);
@@ -718,18 +719,18 @@ public final class GLES2Renderer implements Renderer {
         gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, 0);
 
         attrib(GLES2Shaders.ATTR_POS, true);
-        billboardBuffer.position(0);
+        ((Buffer) billboardBuffer).position(0);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_POS, 3, Gl2.GL_FLOAT, false, BB_STRIDE, billboardBuffer);
         attrib(GLES2Shaders.ATTR_UV0, true);
-        billboardBuffer.position(3);
+        ((Buffer) billboardBuffer).position(3);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_UV0, 2, Gl2.GL_FLOAT, false, BB_STRIDE, billboardBuffer);
         attrib(GLES2Shaders.ATTR_COLOR, true);
-        billboardBuffer.position(5);
+        ((Buffer) billboardBuffer).position(5);
         gl.vertexAttribPointer(GLES2Shaders.ATTR_COLOR, 4, Gl2.GL_FLOAT, false, BB_STRIDE, billboardBuffer);
         attrib(GLES2Shaders.ATTR_NORMAL, false);
         attrib(GLES2Shaders.ATTR_UV1, false);
 
-        quadIndices.position(0);
+        ((Buffer) quadIndices).position(0);
         gl.drawElements(Gl2.GL_TRIANGLES, count * 6, Gl2.GL_UNSIGNED_SHORT, quadIndices);
         drawCalls++;
         triangles += count * 2;

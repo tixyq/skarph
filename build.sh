@@ -16,6 +16,10 @@
 # ANDROID_API9  a genuine API 9 jar: AndroidGl2 + Gles2Setup, the only classes that use android.opengl.GLES20
 #               (ANDROID_API8, optional, proves that they really need API 9)
 #
+# LWJGL_CP     the LWJGL 3.3.6 jars (lwjgl, glfw, opengl, openal, stb) separated by ':': compiles the desktop window, OpenGL and
+#               sound classes against the real library (without it they are checked against signature stubs in tests/lwjgl-stubs).
+#               ./build-desktop.sh downloads the jars for you and builds the portable jar.
+#
 # Check that a jar is really old: javap -cp android.jar android.view.MotionEvent | grep getPointerCount
 # must print nothing for API 3 and 4.
 set -e
@@ -129,4 +133,30 @@ if [ -n "$ANDROID_JAR" ]; then
   echo "== demo smoke test (all demo screens, headless, 4000 frames each)"
   javac -nowarn -cp $OUT/core:$OUT/android:$OUT/tests -d $OUT/tests tests/DemoSmokeTest.java
   java -cp $OUT/core:$OUT/android:$OUT/tests DemoSmokeTest
+fi
+
+echo "== desktop layer (plain Java: platforms, links, download and checksums, cache, assets, storage, wav, png, shaders)"
+mkdir -p $OUT/desktop $OUT/hosts
+javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android -d $OUT/desktop $(find skarph-desktop/src/skarph/desktop -maxdepth 1 -name '*.java')
+javac -nowarn -cp $OUT/core:$OUT/android:$OUT/desktop -d $OUT/tests tests/DesktopTest.java
+java -cp $OUT/core:$OUT/android:$OUT/desktop:$OUT/tests DesktopTest demos/demo-v1.0/assets
+
+echo "== desktop window / OpenGL / sound classes against signature stubs, desktop demo"
+javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android:$OUT/desktop -d $OUT/hosts \
+    $(find tests/lwjgl-stubs -name '*.java') skarph-desktop/src/skarph/desktop/host/*.java
+javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android:$OUT/desktop:$OUT/port -d $OUT/hosts demos/demo-v1.0/desktop/DesktopDemo.java
+if [ -n "$LWJGL_CP" ]; then
+  echo "== desktop classes against the real LWJGL jars (LWJGL_CP)"
+  mkdir -p $OUT/hosts-real
+  javac -nowarn -source 8 -target 8 -cp "$OUT/core:$OUT/android:$OUT/desktop:$LWJGL_CP" -d $OUT/hosts-real skarph-desktop/src/skarph/desktop/host/*.java
+fi
+
+if [ -d game/src ]; then   # the game is optional
+  echo "== the maze game (plain Java): touch and desktop controls, headless; desktop start"
+  mkdir -p $OUT/maze
+  MAZE=$(find game/src -name '*.java' | xargs grep -L '^import android\.')   # GameActivity needs android.jar
+  javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/tests:$OUT/desktop -d $OUT/maze $MAZE game/desktop/*.java \
+      game/tests/MazeGameTest.java game/tests/MazeDesktopTest.java
+  java -cp $OUT/core:$OUT/tests:$OUT/maze MazeGameTest
+  java -cp $OUT/core:$OUT/tests:$OUT/desktop:$OUT/maze MazeDesktopTest
 fi

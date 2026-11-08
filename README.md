@@ -8,12 +8,14 @@ and 2.0 backends with automatic choice. The core has no platform dependencies, s
 ```
 skarph-core/      the engine, pure Java: loop, math, scene, physics, UI, effects
 skarph-android/   the platform layer: view, renderers, audio, storage, assets, input
+skarph-desktop/   the desktop layer: one portable jar for Windows, Linux and macOS (LWJGL, downloaded on first start)
 demos/            example programs (index: demos/README.md)
 docs/             MANUAL.md (guide) and API.md (every public class and member)
-tools/            Python tools: model converters, lightmap baker, camera tracks, level preview
+tools/            Python tools: model converters, lightmap baker, camera tracks, level preview, icons (no arguments = only help)
 tests/            headless tests
-icon.png          the Skarph icon, 512x512, transparent
+icon.png          the Skarph icon, 512x512, transparent: the icon of every window and app (desktop jar, Android launcher)
 build.sh          compiles, checks API levels, runs all tests
+build-desktop.sh  builds the portable desktop jar (the maze game if game/ is there, else the v1.0 demo; or your game)
 ```
 
 ## Start
@@ -29,9 +31,13 @@ every feature.
 
 Needs a JDK. The Android jars that enable the extra checks are described at the top of `build.sh`.
 
+Desktop: `./build-desktop.sh` builds `build/desktop/skarph-demo-v1.0.jar`, run it with `java -jar`. See
+[docs/MANUAL.md](docs/MANUAL.md), section 14.
+
 ## License
 
-MIT License (see [LICENSE](LICENSE)). You may use, modify and sell the code, including in closed-source and commercial
-projects; the only condition is that the copyright notice and the license text stay with copies of the code.
+GNU General Public License, version 3 or later, with an attribution term (see [LICENSE](LICENSE)). You may use the code
+in commercial projects, but every project that uses it must be released with its full source code under the same license
+and must credit the author.
 
-Copyright (c) 2026 tixyq
+Copyright (C) 2026 tixyq

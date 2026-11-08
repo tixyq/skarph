@@ -497,6 +497,10 @@ def main(argv=None):
     m.add_argument("--no-ground", action="store_true")
     m.add_argument("--no-self-shadow", action="store_true")
     _add_light_args(m)
+    ap.add_argument("-help", action="help", help=argparse.SUPPRESS)
+    if not (sys.argv[1:] if argv is None else argv):
+        ap.print_help()
+        return 0
     a = ap.parse_args(argv)
     if a.command is None:
         ap.print_help()

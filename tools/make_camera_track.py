@@ -103,6 +103,9 @@ def bake(keys):
 
 
 def main(argv):
+    if len(argv) == 1 or argv[1] in ("-h", "-help", "--help"):
+        print(__doc__)
+        return 0
     if len(argv) == 3 and argv[1] == "--info":
         p = read_cam(argv[2])
         print("%d ticks = %.2f s" % (len(p), len(p) / TPS))

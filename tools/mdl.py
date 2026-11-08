@@ -92,3 +92,7 @@ def read_mdl(path):
     indices = list(struct.unpack_from("<%dH" % ic, data, off))
     return {"positions": positions, "normals": normals, "colors": colors, "uv0": uv0, "uv1": uv1,
             "indices": indices, "diffuse": diffuse, "lightmap": lightmap}
+
+
+if __name__ == "__main__":
+    print(__doc__)

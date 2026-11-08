@@ -112,6 +112,10 @@ def main():
     ap.add_argument("--scale", type=float, default=1.0)
     ap.add_argument("--diffuse", default=None)
     ap.add_argument("--lightmap", default="")
+    ap.add_argument("-help", action="help", help=argparse.SUPPRESS)
+    if len(sys.argv) == 1:
+        ap.print_help()
+        return
     a = ap.parse_args()
     pos, idx, nor, col, uv, tex = convert(a.input, a.scale, a.diffuse)
     size = write_mdl(a.output, pos, idx, normals=nor, colors=col, uv0=uv,
