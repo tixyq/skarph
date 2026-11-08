@@ -15,7 +15,7 @@ tools/            Python tools: model converters, lightmap baker, camera tracks,
 tests/            headless tests
 icon.png          the Skarph icon, 512x512, transparent: the icon of every window and app (desktop jar, Android launcher)
 build.sh          compiles, checks API levels, runs all tests
-build-desktop.sh  builds the portable desktop jar (the maze game if game/ is there, else the v1.0 demo; or your game)
+build-desktop.sh  builds the portable desktop jar
 ```
 
 ## Start
