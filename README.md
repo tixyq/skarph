@@ -1,6 +1,6 @@
 <p align="center"><img src="icon.png" width="128" alt="Skarph"></p>
 
-# Skarph
+# Skarph 1.0
 
 A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation in the game loop, OpenGL ES 1.x
 and 2.0 backends with automatic choice. The core has no platform dependencies; it runs on Android and on Windows,
