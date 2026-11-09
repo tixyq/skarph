@@ -1,7 +1,7 @@
 # Architecture
 
 A one-page map of Skarph. Details of every class are in [MANUAL.md](MANUAL.md) and [API.md](API.md); this page
-only shows how the parts fit together and which rules hold everywhere. The diagrams are Mermaid: GitHub draws them.
+only shows how the parts fit together and which rules hold everywhere.
 
 ## 1. Layers
 
