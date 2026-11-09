@@ -18,6 +18,7 @@ icon.png          the Skarph icon, 512x512, transparent; used as the icon of eve
 build.sh          compiles the core and both platform layers, runs all tests
 build-desktop.sh  builds a portable jar of a program for Windows, Linux and macOS
 ```
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), to learn about how the engine works.
 
 ## Start
 
