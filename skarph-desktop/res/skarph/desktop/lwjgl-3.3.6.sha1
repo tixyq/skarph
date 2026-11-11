@@ -1,0 +1,4 @@
+# SHA-1 sums of the LWJGL 3.3.6 files. Written by tools/pin_lwjgl.py (needs a network), one line per file:
+#   <40 hex digits>  <file name>
+# A file with a line here is accepted only with exactly this sum, from any server. Files without a line are
+# checked against the .sha1 file that Maven Central publishes next to them.
