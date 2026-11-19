@@ -38,8 +38,9 @@ public final class GLES2Renderer implements Renderer {
     }
 
     private static final Mat4 IDENTITY = new Mat4();
-    private static final int MAX_MESHES = 64;
-    private static final int MAX_TEXTURES = 32;
+    /** Default table sizes (the constructor with two more arguments sets others). */
+    public static final int DEFAULT_MAX_MESHES = 256;
+    public static final int DEFAULT_MAX_TEXTURES = 128;
     private static final int SPRITE = GLES2Shaders.VARIANTS;
     private static final int PROGRAMS = GLES2Shaders.VARIANTS + 1;
     private static final int QUAD_STRIDE = Renderer.QUAD_FLOATS_PER_VERTEX * 4; // bytes
@@ -50,6 +51,8 @@ public final class GLES2Renderer implements Renderer {
         }
     }
 
+    private final int maxMeshes;
+    private final int maxTextures;
     private final Engine engine;
     private final Gl2 gl;
     private final GlImageLoader images;
@@ -68,35 +71,37 @@ public final class GLES2Renderer implements Renderer {
     private final int[] locLightColor = new int[PROGRAMS];
     private final int[] locFog = new int[PROGRAMS];
     private final int[] locFogColor = new int[PROGRAMS];
+    private final int[] locTint = new int[PROGRAMS];
+    private final int[] locCutoff = new int[PROGRAMS];
     private final int[] fogStampSent = new int[PROGRAMS];   // fogStamp last uploaded to each program
     private int currentProgram;
     private final boolean[] attribOn = new boolean[GLES2Shaders.ATTRIBUTES];
 
     // meshes
-    private final boolean[] meshUsed = new boolean[MAX_MESHES];
-    private final ByteBuffer[] vertexData = new ByteBuffer[MAX_MESHES];
-    private final ShortBuffer[] indexData = new ShortBuffer[MAX_MESHES];
-    private final int[] vbo = new int[MAX_MESHES];
-    private final int[] ibo = new int[MAX_MESHES];
-    private final int[] indexCounts = new int[MAX_MESHES];
-    private final int[] meshStride = new int[MAX_MESHES];
-    private final int[] offNormal = new int[MAX_MESHES];   // -1 = absent
-    private final int[] offColor = new int[MAX_MESHES];
-    private final int[] offUv0 = new int[MAX_MESHES];
-    private final int[] offUv1 = new int[MAX_MESHES];
-    private final int[] meshDiffuse = new int[MAX_MESHES];
-    private final int[] meshLightmap = new int[MAX_MESHES];
+    private final boolean[] meshUsed;
+    private final ByteBuffer[] vertexData;
+    private final ShortBuffer[] indexData;
+    private final int[] vbo;
+    private final int[] ibo;
+    private final int[] indexCounts;
+    private final int[] meshStride;
+    private final int[] offNormal;   // -1 = absent
+    private final int[] offColor;
+    private final int[] offUv0;
+    private final int[] offUv1;
+    private final int[] meshDiffuse;
+    private final int[] meshLightmap;
     private int meshCount;
     private int drawCalls;
     private int triangles;
 
     // textures
-    private final String[] texturePaths = new String[MAX_TEXTURES]; // null = free slot
-    private final boolean[] textureSmooth = new boolean[MAX_TEXTURES];
-    private final boolean[] textureRepeat = new boolean[MAX_TEXTURES];
-    private final int[] textureGlIds = new int[MAX_TEXTURES];
-    private final int[] textureWidths = new int[MAX_TEXTURES];
-    private final int[] textureHeights = new int[MAX_TEXTURES];
+    private final String[] texturePaths; // null = free slot
+    private final boolean[] textureSmooth;
+    private final boolean[] textureRepeat;
+    private final int[] textureGlIds;
+    private final int[] textureWidths;
+    private final int[] textureHeights;
     private int textureCount;
 
     // camera and light
@@ -118,6 +123,21 @@ public final class GLES2Renderer implements Renderer {
     private final float[] fogColor = {0f, 0f, 0f};
     private int fogStamp;                                   // bumped by setFog, uniforms are re-sent lazily
 
+    // 1.2 mesh state: blend mode, alpha test, culling, tint (see Renderer)
+    private int blendMode;
+    private float alphaCutoff;
+    private boolean culling = true;
+    private float tintR = 1f, tintG = 1f, tintB = 1f, tintA = 1f;
+    private boolean tintOn;
+    private boolean scissorOn;
+    private boolean viewportSet;
+    private final boolean[] meshDynamic;
+    private final int[] meshMaxVertices;
+
+    // 3D lines
+    private static final int LINE_STRIDE = Renderer.LINE_FLOATS * 4; // bytes
+    private final FloatBuffer lineBuffer;
+
     // 2D quads
     private final FloatBuffer quadVertices;
     private final ShortBuffer quadIndices;
@@ -128,15 +148,46 @@ public final class GLES2Renderer implements Renderer {
     private final FloatBuffer billboardBuffer;
 
     public GLES2Renderer(Engine engine, Gl2 gl, GlImageLoader images, GlLog log, FailureListener listener) {
+        this(engine, gl, images, log, listener, DEFAULT_MAX_MESHES, DEFAULT_MAX_TEXTURES);
+    }
+
+    /** Same, with the size of the mesh and texture tables (handles are 0 .. max - 1). */
+    public GLES2Renderer(Engine engine, Gl2 gl, GlImageLoader images, GlLog log, FailureListener listener,
+                         int maxMeshes, int maxTextures) {
+        this.maxMeshes = maxMeshes;
+        this.maxTextures = maxTextures;
+        meshUsed = new boolean[maxMeshes];
+        vertexData = new ByteBuffer[maxMeshes];
+        indexData = new ShortBuffer[maxMeshes];
+        vbo = new int[maxMeshes];
+        ibo = new int[maxMeshes];
+        indexCounts = new int[maxMeshes];
+        meshStride = new int[maxMeshes];
+        offNormal = new int[maxMeshes];
+        offColor = new int[maxMeshes];
+        offUv0 = new int[maxMeshes];
+        offUv1 = new int[maxMeshes];
+        meshDiffuse = new int[maxMeshes];
+        meshLightmap = new int[maxMeshes];
+        texturePaths = new String[maxTextures];
+        textureSmooth = new boolean[maxTextures];
+        textureRepeat = new boolean[maxTextures];
+        textureGlIds = new int[maxTextures];
+        textureWidths = new int[maxTextures];
+        textureHeights = new int[maxTextures];
         this.engine = engine;
         this.gl = gl;
         this.images = images;
         this.log = log;
         this.listener = listener;
-        for (int i = 0; i < MAX_MESHES; i++) {
+        for (int i = 0; i < maxMeshes; i++) {
             meshDiffuse[i] = -1;
             meshLightmap[i] = -1;
         }
+        meshDynamic = new boolean[maxMeshes];
+        meshMaxVertices = new int[maxMeshes];
+        lineBuffer = ByteBuffer.allocateDirect(MAX_LINE_VERTICES * LINE_STRIDE)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer();
         quadVertices = ByteBuffer.allocateDirect(MAX_QUADS * 4 * QUAD_STRIDE)
                 .order(ByteOrder.nativeOrder()).asFloatBuffer();
         quadIndices = ByteBuffer.allocateDirect(MAX_QUADS * 6 * 2)
@@ -160,6 +211,7 @@ public final class GLES2Renderer implements Renderer {
             program[i] = 0;
         }
         currentProgram = 0;
+        invalidateBindings();
         for (int i = 0; i < attribOn.length; i++) {
             attribOn[i] = false;
         }
@@ -189,6 +241,11 @@ public final class GLES2Renderer implements Renderer {
     public void onSurfaceChanged(int w, int h) {
         width = w;
         height = h;
+        viewportSet = false;
+        if (scissorOn) {
+            scissorOn = false;
+            gl.disable(Gl2.GL_SCISSOR_TEST);
+        }
         gl.viewport(0, 0, w, h);
     }
 
@@ -288,6 +345,8 @@ public final class GLES2Renderer implements Renderer {
             locLightColor[idx] = gl.getUniformLocation(p, "uLightColor");
             locFog[idx] = gl.getUniformLocation(p, "uFog");
             locFogColor[idx] = gl.getUniformLocation(p, "uFogColor");
+            locTint[idx] = gl.getUniformLocation(p, "uTint");
+            locCutoff[idx] = gl.getUniformLocation(p, "uCutoff");
             fogStampSent[idx] = fogStamp - 1;               // force the first upload
             gl.useProgram(p);
             currentProgram = p;
@@ -444,7 +503,7 @@ public final class GLES2Renderer implements Renderer {
             }
         }
         if (id < 0) {
-            if (meshCount >= MAX_MESHES) {
+            if (meshCount >= maxMeshes) {
                 return -1;
             }
             id = meshCount++;
@@ -487,6 +546,7 @@ public final class GLES2Renderer implements Renderer {
         indexCounts[id] = data.indices.length;
         meshDiffuse[id] = -1;
         meshLightmap[id] = -1;
+        meshDynamic[id] = false;
         meshUsed[id] = true;
         if (!failed) {
             createBuffers(id);
@@ -494,22 +554,41 @@ public final class GLES2Renderer implements Renderer {
         return id;
     }
 
+    // Last mesh whose buffers and attribute pointers are set up, with the shader features it was set up for, and the
+    // textures bound to units 0 and 1: drawing the same mesh again (trees, bricks, bullets) skips those GL calls, which
+    // are costly on old phones (every GL call is a JNI call). Everything that touches these bindings calls
+    // invalidateBindings().
+    private int lastMesh = -1;
+    private int lastFeatures = -1;
+    private int boundTex0 = -1;
+    private int boundTex1 = -1;
+
+    private void invalidateBindings() {
+        lastMesh = -1;
+        lastFeatures = -1;
+        boundTex0 = -1;
+        boundTex1 = -1;
+    }
+
     private void createBuffers(int id) {
+        invalidateBindings();
         ByteBuffer vb = vertexData[id];
         ((Buffer) vb).position(0);
         vbo[id] = gl.genBuffer();
         gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, vbo[id]);
-        gl.bufferData(Gl2.GL_ARRAY_BUFFER, vb.capacity(), vb, Gl2.GL_STATIC_DRAW);
+        int usage = meshDynamic[id] ? Gl2.GL_DYNAMIC_DRAW : Gl2.GL_STATIC_DRAW;
+        gl.bufferData(Gl2.GL_ARRAY_BUFFER, vb.capacity(), vb, usage);
         ShortBuffer ix = indexData[id];
         ((Buffer) ix).position(0);
         ibo[id] = gl.genBuffer();
         gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, ibo[id]);
-        gl.bufferData(Gl2.GL_ELEMENT_ARRAY_BUFFER, ix.capacity() * 2, ix, Gl2.GL_STATIC_DRAW);
+        gl.bufferData(Gl2.GL_ELEMENT_ARRAY_BUFFER, ix.capacity() * 2, ix, usage);
         gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, 0);
         gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, 0);
     }
 
     public void deleteMesh(int mesh) {
+        invalidateBindings();
         if (mesh < 0 || mesh >= meshCount || !meshUsed[mesh]) {
             return;
         }
@@ -523,6 +602,7 @@ public final class GLES2Renderer implements Renderer {
         indexData[mesh] = null;
         meshDiffuse[mesh] = -1;
         meshLightmap[mesh] = -1;
+        meshDynamic[mesh] = false;
         meshUsed[mesh] = false;
     }
 
@@ -541,15 +621,33 @@ public final class GLES2Renderer implements Renderer {
         boolean lm = hasLightmapAsset && lightmapsEnabled;
         // baked light replaces dynamic light, also while lightmaps are switched off for a comparison
         boolean lit = lightingRequested && offNormal[mesh] >= 0 && !hasLightmapAsset && !skyPass;
+        boolean styled = !skyPass && (blendMode != BLEND_OPAQUE || alphaCutoff > 0f || !culling || tintOn);
+        boolean tint = styled && tintOn;
+        boolean atest = styled && alphaCutoff > 0f;
         int features = (lit ? GLES2Shaders.LIT : 0) | (tex0 ? GLES2Shaders.TEX0 : 0) | (lm ? GLES2Shaders.LM : 0)
-                | (fogOn && !skyPass ? GLES2Shaders.FOG : 0);
+                | (fogOn && !skyPass ? GLES2Shaders.FOG : 0) | (tint ? GLES2Shaders.TINT : 0)
+                | (atest ? GLES2Shaders.ATEST : 0);
         if (!useProgram(features)) {
             return;
         }
         mvp.multiply(skyPass ? skyViewProj : viewProj, model);
         gl.uniformMatrix4fv(locMvp[features], mvp.m);
-        if ((features & GLES2Shaders.FOG) != 0 && fogStampSent[features] != fogStamp) {   // only when the fog changed since this program saw it
-            sendFog(features, false);
+        boolean additive = styled && blendMode == BLEND_ADD;
+        if ((features & GLES2Shaders.FOG) != 0) {
+            if (additive) {
+                sendFog(features, true);                    // additive meshes fade to black, not to the fog color
+            } else if (fogStampSent[features] != fogStamp) {   // only when the fog changed since this program saw it
+                sendFog(features, false);
+            }
+        }
+        if (tint) {
+            gl.uniform4f(locTint[features], tintR, tintG, tintB, tintA);
+        }
+        if (atest) {
+            gl.uniform1f(locCutoff[features], alphaCutoff);
+        }
+        if (styled) {
+            applyMeshState();
         }
         if (lit) {
             normalMatrix(model, normalMat);
@@ -559,32 +657,255 @@ public final class GLES2Renderer implements Renderer {
             gl.uniform3f(locLightColor[features], lightColor[0], lightColor[1], lightColor[2]);
         }
 
-        int stride = meshStride[mesh];
-        gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, vbo[mesh]);
-        attrib(GLES2Shaders.ATTR_POS, true);
-        gl.vertexAttribPointer(GLES2Shaders.ATTR_POS, 3, Gl2.GL_FLOAT, false, stride, 0);
-        attrib(GLES2Shaders.ATTR_COLOR, true);
-        gl.vertexAttribPointer(GLES2Shaders.ATTR_COLOR, 4, Gl2.GL_UNSIGNED_BYTE, true, stride, offColor[mesh]);
-        attrib(GLES2Shaders.ATTR_NORMAL, lit);
-        if (lit) {
-            gl.vertexAttribPointer(GLES2Shaders.ATTR_NORMAL, 3, Gl2.GL_FLOAT, false, stride, offNormal[mesh]);
+        if (mesh != lastMesh || features != lastFeatures) {
+            int stride = meshStride[mesh];
+            gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, vbo[mesh]);
+            attrib(GLES2Shaders.ATTR_POS, true);
+            gl.vertexAttribPointer(GLES2Shaders.ATTR_POS, 3, Gl2.GL_FLOAT, false, stride, 0);
+            attrib(GLES2Shaders.ATTR_COLOR, true);
+            gl.vertexAttribPointer(GLES2Shaders.ATTR_COLOR, 4, Gl2.GL_UNSIGNED_BYTE, true, stride, offColor[mesh]);
+            attrib(GLES2Shaders.ATTR_NORMAL, lit);
+            if (lit) {
+                gl.vertexAttribPointer(GLES2Shaders.ATTR_NORMAL, 3, Gl2.GL_FLOAT, false, stride, offNormal[mesh]);
+            }
+            attrib(GLES2Shaders.ATTR_UV0, tex0);
+            if (tex0) {
+                gl.vertexAttribPointer(GLES2Shaders.ATTR_UV0, 2, Gl2.GL_FLOAT, false, stride, offUv0[mesh]);
+            }
+            attrib(GLES2Shaders.ATTR_UV1, lm);
+            if (lm) {
+                gl.vertexAttribPointer(GLES2Shaders.ATTR_UV1, 2, Gl2.GL_FLOAT, false, stride, offUv1[mesh]);
+            }
+            gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, ibo[mesh]);
+            lastMesh = mesh;
+            lastFeatures = features;
         }
-        attrib(GLES2Shaders.ATTR_UV0, tex0);
         if (tex0) {
-            gl.vertexAttribPointer(GLES2Shaders.ATTR_UV0, 2, Gl2.GL_FLOAT, false, stride, offUv0[mesh]);
-            gl.activeTexture(Gl2.GL_TEXTURE0);
-            gl.bindTexture(Gl2.GL_TEXTURE_2D, textureGlIds[meshDiffuse[mesh]]);
+            int t = textureGlIds[meshDiffuse[mesh]];
+            if (t != boundTex0) {
+                gl.activeTexture(Gl2.GL_TEXTURE0);
+                gl.bindTexture(Gl2.GL_TEXTURE_2D, t);
+                boundTex0 = t;
+            }
         }
-        attrib(GLES2Shaders.ATTR_UV1, lm);
         if (lm) {
-            gl.vertexAttribPointer(GLES2Shaders.ATTR_UV1, 2, Gl2.GL_FLOAT, false, stride, offUv1[mesh]);
-            gl.activeTexture(Gl2.GL_TEXTURE1);
-            gl.bindTexture(Gl2.GL_TEXTURE_2D, textureGlIds[meshLightmap[mesh]]);
+            int t = textureGlIds[meshLightmap[mesh]];
+            if (t != boundTex1) {
+                gl.activeTexture(Gl2.GL_TEXTURE1);
+                gl.bindTexture(Gl2.GL_TEXTURE_2D, t);
+                boundTex1 = t;
+            }
         }
-        gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, ibo[mesh]);
-        gl.drawElements(Gl2.GL_TRIANGLES, indexCounts[mesh], Gl2.GL_UNSIGNED_SHORT, 0);
+        if (indexCounts[mesh] > 0) {
+            gl.drawElements(Gl2.GL_TRIANGLES, indexCounts[mesh], Gl2.GL_UNSIGNED_SHORT, 0);
+            drawCalls++;
+            triangles += indexCounts[mesh] / 3;
+        }
+        if (styled) {
+            restoreMeshState();
+        }
+    }
+
+    /** Switches GL to the blend / culling state requested by the game, for one mesh. */
+    private void applyMeshState() {
+        if (blendMode != BLEND_OPAQUE) {
+            gl.enable(Gl2.GL_BLEND);
+            gl.blendFunc(Gl2.GL_SRC_ALPHA, blendMode == BLEND_ADD ? Gl2.GL_ONE : Gl2.GL_ONE_MINUS_SRC_ALPHA);
+            gl.depthMask(false);                            // test against the scene, never hide each other
+        }
+        if (!culling) {
+            gl.disable(Gl2.GL_CULL_FACE);
+        }
+    }
+
+    /** Back to the default state that every other draw call expects. */
+    private void restoreMeshState() {
+        if (blendMode != BLEND_OPAQUE) {
+            gl.disable(Gl2.GL_BLEND);
+            gl.depthMask(true);
+        }
+        if (!culling) {
+            gl.enable(Gl2.GL_CULL_FACE);
+        }
+    }
+
+    public void setBlendMode(int mode) {
+        blendMode = mode;
+    }
+
+    public void setAlphaTest(float cutoff) {
+        alphaCutoff = cutoff;
+    }
+
+    public void setCulling(boolean backFaceCulling) {
+        culling = backFaceCulling;
+    }
+
+    public void setTint(float r, float g, float b, float a) {
+        tintR = r;
+        tintG = g;
+        tintB = b;
+        tintA = a;
+        tintOn = r != 1f || g != 1f || b != 1f || a != 1f;
+    }
+
+    // ---- viewport, scissor ---------------------------------------------------------------------
+
+    public void setViewport(int x, int y, int w, int h) {
+        viewportSet = true;
+        gl.viewport(x, height - (y + h), w, h);
+    }
+
+    public void resetViewport() {
+        if (viewportSet) {
+            viewportSet = false;
+            gl.viewport(0, 0, width, height);
+        }
+    }
+
+    public void setScissor(boolean enabled, int x, int y, int w, int h) {
+        if (enabled) {
+            if (!scissorOn) {
+                scissorOn = true;
+                gl.enable(Gl2.GL_SCISSOR_TEST);
+            }
+            gl.scissor(x, height - (y + h), w, h);
+        } else if (scissorOn) {
+            scissorOn = false;
+            gl.disable(Gl2.GL_SCISSOR_TEST);
+        }
+    }
+
+    public void clearDepth() {
+        if (!failed) {
+            gl.clear(Gl2.GL_DEPTH_BUFFER_BIT);
+        }
+    }
+
+    // ---- 3D lines --------------------------------------------------------------------------------
+
+    public void drawLines(float[] data, int vertexCount) {
+        if (failed || vertexCount < 2) {
+            return;
+        }
+        if (vertexCount > MAX_LINE_VERTICES) {
+            vertexCount = MAX_LINE_VERTICES;
+        }
+        vertexCount &= ~1;
+        if (!useProgram(0)) {                               // the plain program: vertex color only
+            return;
+        }
+        invalidateBindings();
+        ((Buffer) lineBuffer).clear();
+        lineBuffer.put(data, 0, vertexCount * Renderer.LINE_FLOATS);
+        gl.uniformMatrix4fv(locMvp[0], viewProj.m);
+        gl.enable(Gl2.GL_BLEND);
+        gl.blendFunc(Gl2.GL_SRC_ALPHA, Gl2.GL_ONE_MINUS_SRC_ALPHA);
+        gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, 0);
+        gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, 0);
+        attrib(GLES2Shaders.ATTR_POS, true);
+        ((Buffer) lineBuffer).position(0);
+        gl.vertexAttribPointer(GLES2Shaders.ATTR_POS, 3, Gl2.GL_FLOAT, false, LINE_STRIDE, lineBuffer);
+        attrib(GLES2Shaders.ATTR_COLOR, true);
+        ((Buffer) lineBuffer).position(3);
+        gl.vertexAttribPointer(GLES2Shaders.ATTR_COLOR, 4, Gl2.GL_FLOAT, false, LINE_STRIDE, lineBuffer);
+        attrib(GLES2Shaders.ATTR_NORMAL, false);
+        attrib(GLES2Shaders.ATTR_UV0, false);
+        attrib(GLES2Shaders.ATTR_UV1, false);
+        gl.drawArrays(Gl2.GL_LINES, 0, vertexCount);
         drawCalls++;
-        triangles += indexCounts[mesh] / 3;
+        gl.disable(Gl2.GL_BLEND);
+    }
+
+    // ---- dynamic meshes ----------------------------------------------------------------------------
+
+    public int createDynamicMesh(int maxVertices, int maxIndices, boolean withNormals, boolean withUv0) {
+        if (maxVertices < 1 || maxVertices > 65535 || maxIndices < 3) {
+            return -1;
+        }
+        int id = -1;
+        for (int i = 0; i < meshCount; i++) {
+            if (!meshUsed[i]) {
+                id = i;
+                break;
+            }
+        }
+        if (id < 0) {
+            if (meshCount >= maxMeshes) {
+                return -1;
+            }
+            id = meshCount++;
+        }
+        int stride = 12 + (withNormals ? 12 : 0) + 4 + (withUv0 ? 8 : 0);
+        offNormal[id] = withNormals ? 12 : -1;
+        offColor[id] = 12 + (withNormals ? 12 : 0);
+        offUv0[id] = withUv0 ? offColor[id] + 4 : -1;
+        offUv1[id] = -1;
+        meshStride[id] = stride;
+        ByteBuffer bb = ByteBuffer.allocateDirect(maxVertices * stride).order(ByteOrder.nativeOrder());
+        ShortBuffer ib = ByteBuffer.allocateDirect(maxIndices * 2).order(ByteOrder.nativeOrder()).asShortBuffer();
+        vertexData[id] = bb;
+        indexData[id] = ib;
+        indexCounts[id] = 0;
+        meshDiffuse[id] = -1;
+        meshLightmap[id] = -1;
+        meshDynamic[id] = true;
+        meshMaxVertices[id] = maxVertices;
+        meshUsed[id] = true;
+        if (!failed) {
+            createBuffers(id);
+        }
+        return id;
+    }
+
+    public void updateMesh(int mesh, float[] positions, float[] normals, float[] colors, float[] uv0,
+                           short[] indices, int vertexCount, int indexCount) {
+        if (mesh < 0 || mesh >= meshCount || !meshUsed[mesh] || !meshDynamic[mesh]) {
+            return;
+        }
+        ByteBuffer bb = vertexData[mesh];
+        ShortBuffer ib = indexData[mesh];
+        int vc = vertexCount > meshMaxVertices[mesh] ? meshMaxVertices[mesh] : vertexCount;
+        int ic = indexCount > ib.capacity() ? ib.capacity() : indexCount;
+        ic -= ic % 3;
+        int stride = meshStride[mesh];
+        int oc = offColor[mesh];
+        int on = offNormal[mesh];
+        int ou = offUv0[mesh];
+        for (int v = 0; v < vc; v++) {
+            int o = v * stride;
+            bb.putFloat(o, positions[v * 3]);
+            bb.putFloat(o + 4, positions[v * 3 + 1]);
+            bb.putFloat(o + 8, positions[v * 3 + 2]);
+            if (on >= 0 && normals != null) {
+                bb.putFloat(o + on, normals[v * 3]);
+                bb.putFloat(o + on + 4, normals[v * 3 + 1]);
+                bb.putFloat(o + on + 8, normals[v * 3 + 2]);
+            }
+            for (int c = 0; c < 4; c++) {
+                int b = (int) (colors[v * 4 + c] * 255f + 0.5f);
+                bb.put(o + oc + c, (byte) (b < 0 ? 0 : (b > 255 ? 255 : b)));
+            }
+            if (ou >= 0 && uv0 != null) {
+                bb.putFloat(o + ou, uv0[v * 2]);
+                bb.putFloat(o + ou + 4, uv0[v * 2 + 1]);
+            }
+        }
+        for (int i = 0; i < ic; i++) {
+            ib.put(i, indices[i]);
+        }
+        indexCounts[mesh] = ic;
+        if (!failed && vc > 0 && ic > 0) {
+            invalidateBindings();
+            ((Buffer) bb).position(0);
+            gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, vbo[mesh]);
+            gl.bufferData(Gl2.GL_ARRAY_BUFFER, vc * stride, bb, Gl2.GL_DYNAMIC_DRAW);
+            ((Buffer) ib).position(0);
+            gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, ibo[mesh]);
+            gl.bufferData(Gl2.GL_ELEMENT_ARRAY_BUFFER, ic * 2, ib, Gl2.GL_DYNAMIC_DRAW);
+            gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, 0);
+            gl.bindBuffer(Gl2.GL_ELEMENT_ARRAY_BUFFER, 0);
+        }
     }
 
     /** Uploads the fog uniforms. black = fog color black (additive billboards); the program then re-sends the real fog next time. */
@@ -656,6 +977,7 @@ public final class GLES2Renderer implements Renderer {
         gl.disable(Gl2.GL_CULL_FACE);
         gl.enable(Gl2.GL_BLEND);
         gl.blendFunc(Gl2.GL_SRC_ALPHA, Gl2.GL_ONE_MINUS_SRC_ALPHA);
+        invalidateBindings();
         gl.activeTexture(Gl2.GL_TEXTURE0);
         gl.bindTexture(Gl2.GL_TEXTURE_2D, textureGlIds[texture]);
         gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, 0);          // vertex and index data come from client memory
@@ -713,6 +1035,7 @@ public final class GLES2Renderer implements Renderer {
         gl.disable(Gl2.GL_CULL_FACE);
         gl.enable(Gl2.GL_BLEND);
         gl.blendFunc(Gl2.GL_SRC_ALPHA, additive ? Gl2.GL_ONE : Gl2.GL_ONE_MINUS_SRC_ALPHA);
+        invalidateBindings();
         gl.activeTexture(Gl2.GL_TEXTURE0);
         gl.bindTexture(Gl2.GL_TEXTURE_2D, textureGlIds[texture]);
         gl.bindBuffer(Gl2.GL_ARRAY_BUFFER, 0);               // vertex and index data come from client memory
@@ -755,7 +1078,7 @@ public final class GLES2Renderer implements Renderer {
             }
         }
         if (id < 0) {
-            if (textureCount >= MAX_TEXTURES) {
+            if (textureCount >= maxTextures) {
                 log.error("texture table is full");
                 return -1;
             }
@@ -788,6 +1111,7 @@ public final class GLES2Renderer implements Renderer {
         boolean repeat = textureRepeat[id];
         boolean mips = smooth && repeat;
         int glId = gl.genTexture();
+        invalidateBindings();
         gl.activeTexture(Gl2.GL_TEXTURE0);
         gl.bindTexture(Gl2.GL_TEXTURE_2D, glId);
         gl.texParameteri(Gl2.GL_TEXTURE_2D, Gl2.GL_TEXTURE_MIN_FILTER,
@@ -811,6 +1135,7 @@ public final class GLES2Renderer implements Renderer {
         if (texture < 0 || texture >= textureCount || texturePaths[texture] == null) {
             return;
         }
+        invalidateBindings();
         if (!failed && textureGlIds[texture] != 0) {
             gl.deleteTexture(textureGlIds[texture]);
         }

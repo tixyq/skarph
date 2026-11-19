@@ -167,7 +167,7 @@ public final class Host {
         engine.setStorage(new DesktopStorage(AppDirs.dataDir(platform, config.appName)));
         audio = OpenAlAudio.create(assets, log);
         if (audio != null) {
-            engine.setAudio(audio);
+            engine.setAudio(new skarph.core.AudioMixer(audio));
         }
         renderer = new GLES2Renderer(engine, new LwjglGl2(), new ImageIoLoader(assets), log,
                 new GLES2Renderer.FailureListener() {

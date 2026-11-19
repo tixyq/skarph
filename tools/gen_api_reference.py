@@ -18,16 +18,17 @@ ROOT = os.path.join(HERE, "..")
 OUT = os.path.join(ROOT, "docs", "API.md")
 
 GROUPS = [
-    ("Loop and input", "Engine Screen ScreenAdapter TickClock InputEvent InputQueue TouchState TouchDecoder Stats"),
-    ("Math", "Vec3 Mat4 FastMath Aabb Ray RayHit"),
+    ("Loop and input", "Engine Screen ScreenAdapter Resizable AsyncLoader TickClock InputEvent InputQueue TouchState TouchDecoder Stats"),
+    ("Math", "Vec3 Vec2 Quat Mat4 FastMath Ease Tween Plane Aabb Ray RayHit"),
     ("Memory tools", "Pool IntList IntIntMap TextBuffer"),
-    ("Rendering", "Renderer Camera Shapes MeshData Sky Billboards BillboardBatch"),
-    ("2D", "SpriteBatch TextureRegion FrameAnimation BitmapFont Ui"),
+    ("Rendering", "Renderer Camera Shapes MeshData Sky Billboards BillboardBatch DebugDraw"),
+    ("2D", "SpriteBatch TextureRegion FrameAnimation BitmapFont Ui Strings"),
+    ("2D worlds", "Camera2D TileSet TileMap Body2D Collision2D Hit2D ParallaxLayer"),
     ("Scene and content", "Scene Node Level LevelLoader ModelData ModelFormat ResourceManager Assets"),
-    ("Physics", "PhysicsWorld Body Collision Contact SpatialGrid"),
+    ("Physics", "PhysicsWorld Body Collision Contact SpatialGrid CharacterController ContactListener Heightfield"),
     ("Effects and cutscenes", "ParticleSystem ParticleType CameraTrack Timeline"),
     ("Diagnostics and quality", "Profiler Benchmark QualityGovernor"),
-    ("Sound, saving and network", "Audio NullAudio Storage MemoryStorage Settings Http HttpRequest UrlHttp"),
+    ("Sound, saving and network", "Audio AudioMixer NullAudio Storage MemoryStorage Settings Http HttpRequest UrlHttp"),
     ("Android platform layer", "EngineView AndroidVersion GLES1Renderer GLES2Renderer AndroidAssets AndroidAudio AndroidStorage AndroidGc AndroidLog BitmapImageLoader"),
 ]
 

@@ -140,6 +140,8 @@ final class OpenAlAudio implements Audio {
                 AL10.alSourcef(s, AL10.AL_GAIN, clamp(volume, 0f, 1f));
                 AL10.alSourcef(s, AL10.AL_PITCH, clamp(pitch, 0.5f, 2f));
                 AL10.alSourcei(s, AL10.AL_LOOPING, loop ? AL10.AL_TRUE : AL10.AL_FALSE);
+                AL10.alSourcei(s, AL10.AL_SOURCE_RELATIVE, AL10.AL_TRUE);   // a reused source forgets its old pan
+                AL10.alSource3f(s, AL10.AL_POSITION, 0f, 0f, 0f);
                 AL10.alSourcePlay(s);
                 return s;
             }
@@ -154,6 +156,44 @@ final class OpenAlAudio implements Audio {
                 return;
             }
         }
+    }
+
+    public synchronized void setStreamGain(int stream, float left, float right) {
+        for (int s : sources) {
+            if (s == stream) {
+                float g = left > right ? left : right;
+                AL10.alSourcef(s, AL10.AL_GAIN, clamp(g, 0f, 1f));
+                // mono sources are placed in front of the listener, to the side that is louder
+                float pan = g > 0.0001f ? (right - left) / g : 0f;
+                pan = clamp(pan, -1f, 1f);
+                AL10.alSourcei(s, AL10.AL_SOURCE_RELATIVE, AL10.AL_TRUE);
+                AL10.alSource3f(s, AL10.AL_POSITION, pan, 0f, -(float) Math.sqrt(1f - pan * pan));
+                return;
+            }
+        }
+    }
+
+    public synchronized void setStreamRate(int stream, float pitch) {
+        for (int s : sources) {
+            if (s == stream) {
+                AL10.alSourcef(s, AL10.AL_PITCH, clamp(pitch, 0.5f, 2f));
+                return;
+            }
+        }
+    }
+
+    public boolean canQueryStreams() {
+        return true;
+    }
+
+    public synchronized boolean isStreamActive(int stream) {
+        for (int s : sources) {
+            if (s == stream) {
+                int state = AL10.alGetSourcei(s, AL10.AL_SOURCE_STATE);
+                return state == AL10.AL_PLAYING || state == AL10.AL_PAUSED;
+            }
+        }
+        return false;
     }
 
     public synchronized boolean playMusic(String assetPath, boolean loop) {

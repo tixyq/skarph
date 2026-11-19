@@ -99,6 +99,81 @@ public final class Mat4 {
         return this;
     }
 
+    /** this = this * Rotation(q) for a unit quaternion (x, y, z, w), see {@link Quat}. Allocation free. */
+    public Mat4 rotateQuat(float qx, float qy, float qz, float qw) {
+        float xx = qx * qx, yy = qy * qy, zz = qz * qz;
+        float xy = qx * qy, xz = qx * qz, yz = qy * qz;
+        float wx = qw * qx, wy = qw * qy, wz = qw * qz;
+        float r00 = 1f - 2f * (yy + zz);
+        float r10 = 2f * (xy + wz);
+        float r20 = 2f * (xz - wy);
+        float r01 = 2f * (xy - wz);
+        float r11 = 1f - 2f * (xx + zz);
+        float r21 = 2f * (yz + wx);
+        float r02 = 2f * (xz + wy);
+        float r12 = 2f * (yz - wx);
+        float r22 = 1f - 2f * (xx + yy);
+        for (int r = 0; r < 4; r++) {
+            float a = m[r];
+            float b = m[4 + r];
+            float d = m[8 + r];
+            t[r] = a * r00 + b * r10 + d * r20;
+            t[4 + r] = a * r01 + b * r11 + d * r21;
+            t[8 + r] = a * r02 + b * r12 + d * r22;
+        }
+        System.arraycopy(t, 0, m, 0, 12);
+        return this;
+    }
+
+    /** this = this * Rotation(q). */
+    public Mat4 rotate(Quat q) {
+        return rotateQuat(q.x, q.y, q.z, q.w);
+    }
+
+    /** this = a + (b - a) * t, element by element. Good for blending two poses a fraction of a tick apart. */
+    public Mat4 lerp(Mat4 a, Mat4 b, float t) {
+        float[] am = a.m;
+        float[] bm = b.m;
+        for (int i = 0; i < 16; i++) {
+            m[i] = am[i] + (bm[i] - am[i]) * t;
+        }
+        return this;
+    }
+
+    /**
+     * Like lerp(), but keeps the axes the right length: blending two rotated poses element by element shrinks the object
+     * halfway (a 90 degree turn would be drawn 30% smaller). The columns are scaled back to the blend of the two poses'
+     * axis lengths. No square roots, no allocation.
+     */
+    public Mat4 lerpRigid(Mat4 a, Mat4 b, float t) {
+        float[] am = a.m;
+        float[] bm = b.m;
+        boolean same = true;
+        for (int c = 0; c < 3 && same; c++) {
+            int o = c * 4;
+            same = am[o] == bm[o] && am[o + 1] == bm[o + 1] && am[o + 2] == bm[o + 2];
+        }
+        lerp(a, b, t);
+        if (same) {
+            return this;                    // only the position changed
+        }
+        for (int c = 0; c < 3; c++) {
+            int o = c * 4;
+            float a2 = am[o] * am[o] + am[o + 1] * am[o + 1] + am[o + 2] * am[o + 2];
+            float b2 = bm[o] * bm[o] + bm[o + 1] * bm[o + 1] + bm[o + 2] * bm[o + 2];
+            float l2 = m[o] * m[o] + m[o + 1] * m[o + 1] + m[o + 2] * m[o + 2];
+            if (l2 > 1e-10f) {
+                float r = (a2 + (b2 - a2) * t) / l2;      // wanted length^2 / current length^2, 1 .. 2
+                float y = 1f + (r - 1f) * 0.5f;           // sqrt(r): first order, then one Newton step
+                y = 0.5f * (y + r / y);
+                m[o] *= y;
+                m[o + 1] *= y;
+                m[o + 2] *= y;
+            }
+        }
+        return this;
+    }
+
     /** this = this * RotationX(angleDegrees). Faster than rotate(). */
     public Mat4 rotateX(float angleDeg) {
         float c = FastMath.cos(angleDeg);

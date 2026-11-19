@@ -16,6 +16,8 @@ public class GL11 {
     public static void glFrontFace(int m) { }
     public static void glCullFace(int m) { }
     public static void glViewport(int x, int y, int w, int h) { }
+    public static void glScissor(int x, int y, int w, int h) { }
+    public static void glDrawArrays(int mode, int first, int count) { }
     public static void glClearColor(float r, float g, float b, float a) { }
     public static void glClear(int m) { }
     public static int glGetError() { return 0; }

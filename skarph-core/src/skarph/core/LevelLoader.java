@@ -95,7 +95,7 @@ public final class LevelLoader {
             level.camHeight = num(t, 5, 10f, line);
         } else if (cmd.equals("object")) {
             need(t, 2, line);
-            if (level.objectCount >= Level.MAX_OBJECTS) {
+            if (level.objectCount >= level.maxObjects) {
                 throw new IllegalStateException("level has too many objects");
             }
             ResourceManager.Model m = res.getModel(t[1]);
@@ -121,7 +121,7 @@ public final class LevelLoader {
             if (world == null) {
                 return;
             }
-            if (level.bodyCount >= Level.MAX_BODIES) {
+            if (level.bodyCount >= level.maxBodies) {
                 throw new IllegalStateException("level has too many boxes");
             }
             Body b = world.createBox(num(t, 1, 0f, line), num(t, 2, 0f, line), num(t, 3, 0f, line),
@@ -133,7 +133,7 @@ public final class LevelLoader {
             level.bodies[level.bodyCount++] = b;
         } else if (cmd.equals("spawn")) {
             need(t, 4, line);
-            if (level.spawnCount >= Level.MAX_SPAWNS) {
+            if (level.spawnCount >= level.maxSpawns) {
                 throw new IllegalStateException("level has too many spawn points");
             }
             int i = level.spawnCount++ * 3;

@@ -6,9 +6,15 @@ package skarph.core;
  * so that unload() can remove it again.
  */
 public final class Level {
+    /** Default capacities of new Level() (use the three-argument constructor for bigger or smaller levels). */
     public static final int MAX_OBJECTS = 256;
     public static final int MAX_SPAWNS = 64;
     public static final int MAX_BODIES = 128;
+
+    /** Capacity of this level: objects (nodes with models), spawn points, physics bodies. */
+    public final int maxObjects;
+    public final int maxSpawns;
+    public final int maxBodies;
 
     /** Camera hints from the file: orbit target, distance and height. */
     public float camTargetX;
@@ -18,14 +24,30 @@ public final class Level {
     public float camHeight = 10f;
 
     /** Spawn points, 3 floats each. */
-    public final float[] spawns = new float[MAX_SPAWNS * 3];
+    public final float[] spawns;
     public int spawnCount;
 
-    final Node[] nodes = new Node[MAX_OBJECTS];
-    final ResourceManager.Model[] models = new ResourceManager.Model[MAX_OBJECTS];
+    final Node[] nodes;
+    final ResourceManager.Model[] models;
     int objectCount;
-    final Body[] bodies = new Body[MAX_BODIES];
+    final Body[] bodies;
     int bodyCount;
+
+    /** A level with the default capacities. */
+    public Level() {
+        this(MAX_OBJECTS, MAX_SPAWNS, MAX_BODIES);
+    }
+
+    /** A level with its own capacities (allocates the tables once; call it in init()). */
+    public Level(int maxObjects, int maxSpawns, int maxBodies) {
+        this.maxObjects = maxObjects;
+        this.maxSpawns = maxSpawns;
+        this.maxBodies = maxBodies;
+        spawns = new float[maxSpawns * 3];
+        nodes = new Node[maxObjects];
+        models = new ResourceManager.Model[maxObjects];
+        bodies = new Body[maxBodies];
+    }
 
     public int getObjectCount() {
         return objectCount;

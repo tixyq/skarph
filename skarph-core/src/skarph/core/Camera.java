@@ -96,6 +96,28 @@ public final class Camera {
         return true;
     }
 
+    /** @return false only if the box is completely outside the frustum (tighter than a sphere for long thin things). */
+    public boolean isAabbVisible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+        float[] pl = planes;
+        for (int i = 0; i < 24; i += 4) {
+            float a = pl[i];
+            float b = pl[i + 1];
+            float c = pl[i + 2];
+            // the corner of the box that lies farthest in the direction of the plane normal
+            float px = a >= 0f ? maxX : minX;
+            float py = b >= 0f ? maxY : minY;
+            float pz = c >= 0f ? maxZ : minZ;
+            if (a * px + b * py + c * pz + pl[i + 3] < 0f) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean isAabbVisible(Aabb box) {
+        return isAabbVisible(box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ);
+    }
+
     /** @return false only if the sphere is completely outside the frustum. */
     public boolean isSphereVisible(float x, float y, float z, float radius) {
         float[] pl = planes;

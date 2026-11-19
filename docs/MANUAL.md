@@ -20,6 +20,7 @@ platform specific is collected in [13](#13-platform-layers) (the contract and An
 12. [Build and tests](#12-build-and-tests)
 13. [Platform layers](#13-platform-layers)
 14. [Desktop: Windows, Linux, macOS](#14-desktop-windows-linux-macos)
+15. [New in 1.2](#15-new-in-12)
 
 ---
 
@@ -1628,3 +1629,80 @@ Limits: the desktop has no ES 1.x backend and no multi-touch; a graphics driver 
 Tests: `tests/DesktopTest.java` (platforms, links, download, checksums, cache, assets, storage, wav, png, shaders) runs in
 `tests/run-tests.sh` without a graphics card; the window, OpenGL and OpenAL classes need a real machine.
 
+
+---
+
+## 15. New in 1.2
+
+Everything below follows the engine's rules: fixed capacities, nothing allocates per frame (each feature has a test that
+counts allocated bytes over thousands of ticks), only API-3-safe Java in the core (new interface methods are `default`
+methods, so old implementations keep compiling). Run `tests/run-12-tests.sh` to compile and test it all.
+
+### 15.1 Smooth motion: render interpolation
+Logic still runs at 60 ticks per second; the screen can run faster or slower. `engine.getAlpha()` (0..1) is how far the
+current frame is between the last two ticks. `scene.render(r, camera, engine.getAlpha())` draws every node that moved in
+the last tick between its previous and current position. After a teleport call `node.snap()` (or set
+`scene.interpolate = false`). For your own sprites use `Body2D.getRenderX(alpha)`, `Tween.getValue(alpha)`,
+`Camera2D.getProjection(proj, alpha)`.
+`Resizable`: implement it on a Screen (`ScreenAdapter` already does) to hear `resize(w, h)` when the window or
+orientation changes, and once after `init()`.
+
+### 15.2 Math
+`Quat` (axis-angle, Euler matching Node's order, slerp / nlerp, look rotation; `node.setRotationQuat(q)`), `Vec2`, `Ease`
+(18 curves) with `Tween`, `Plane` (distance, ray, box classification), `FastMath` (`lerp`, `clamp`, `smoothstep`, `wrapAngle`,
+`angleDelta`, `atan2`, `acos`, `asin`; angles in degrees), `Camera.isAabbVisible(...)` (frustum against a box).
+
+### 15.3 Rendering
+New `Renderer` calls (all `default` methods, implemented by GLES2 and GLES1):
+`setBlendMode(BLEND_OPAQUE | BLEND_ALPHA | BLEND_ADD)`, `setAlphaTest(cutoff)`, `setCulling(bool)`, `setTint(r,g,b,a)`,
+`drawLines(data, n)` (7 floats per vertex), `setViewport` / `resetViewport`, `setScissor`, `clearDepth`,
+`createDynamicMesh` + `updateMesh` (a mesh you rewrite every frame, fixed capacity).
+`Node` has `setTint`, `setBlend`, `setAlphaTest`, `setDoubleSided`; `Scene` draws opaque nodes first, then transparent ones
+sorted far to near (preallocated sort, no allocation). `DebugDraw` collects lines (boxes, spheres, capsules, rays, grids)
+and `flush(renderer)` draws them; `PhysicsWorld.debugDraw(dd)` shows every body.
+`GLES2Renderer` / `GLES1Renderer` take `maxMeshes` / `maxTextures` in an extra constructor (defaults 256 / 128).
+Notes: on OpenGL ES 1.x the tint replaces vertex colors (no per-pixel multiply); the GLES2 shader variants for tint and
+alpha test compile lazily on first use (a one-time hitch, so draw one such node during loading).
+`AsyncLoader` loads models, textures and files on a worker thread and uploads them on the render thread inside a time budget
+(`pump(4000000L)` each frame), so a loading screen keeps animating.
+`new Level(maxObjects, maxSpawns, maxBodies)` sets the level capacities.
+
+### 15.4 Physics
+Capsules (`createCapsule`, vertical axis), `CharacterController` (walk, slide along walls, step up ledges, slopes, jump,
+ground snap; it drives a mass-0 capsule), `ContactListener` (`onBegin`, `onEnd`, `onHit(speed)`, delivered at the end of
+`step()`, bodies may be destroyed inside callbacks), triggers (`body.trigger = true`), `layer` / `mask` bits on bodies and in
+`raycast(ray, maxDist, layerMask, hit)`, sleeping (`world.sleepingEnabled = true`), swept collision against static boxes
+(`ccdEnabled`, on by default), `createDistanceJoint`, `Heightfield` terrain (`setTerrain`), `ceilingY`.
+Not included: body rotation (boxes stay axis aligned), triangle-mesh collision, shadows.
+
+### 15.5 Audio
+The platform hosts now wrap their backend in `AudioMixer`, so `engine.getAudio()` offers: `setStreamVolume` / `setStreamPitch`
+/ `isStreamPlaying` (ids carry a generation: a stale id is ignored), buses (`BUS_MASTER`, `BUS_SFX`, `BUS_MUSIC`, `BUS_UI`;
+`setBusVolume`), 3D sound (`setListener(x,y,z,yaw)`, `playSound3D`, `setStreamPosition`: distance attenuation + left/right
+pan), music `crossfadeMusic` / `fadeMusicOut` / `fadeMusicIn` (sequential: out, then in; the backends play one track).
+On Android `isStreamPlaying` for a one-shot needs `setSoundDuration(sound, seconds)` (SoundPool cannot tell); on desktop it
+is exact.
+
+### 15.6 Text and UI
+`BitmapFont.fromData(texture, w, h, bytes)` loads a proportional Unicode font. `fonts/dejavu12|16|24.png/.fnt` are shipped
+(DejaVu Sans: Latin, Latin-1, Cyrillic, common punctuation; license in `fonts/LICENSE-DejaVu.txt`); make others with
+`python3 tools/make_font.py font.ttf 16 out/name`. Text can be a String or a TextBuffer: `drawWrapped` (word wrap, align,
+max lines), `drawAligned`, `drawEllipsized`, `countLines`, `getTextWidth`. `SpriteBatch`: `setScissor` / `clearScissor`
+(pixels, top-left origin), `drawNine`, `drawTiled`.
+`Ui`: `addImage`, `addTextField` (+ `typeChar`, `backspace`, `getFocus`, `Listener.onSubmit`), `addKeyboard` (on-screen
+Latin / Cyrillic / symbols, `bindKeyboard` shows it only while a field has focus), `addList` (drag scrolling with inertia,
+tap to select, clipped by scissor), `setWrap` (wrapped labels), `setSkin` (nine-patch panels / buttons). Call `ui.update()`
+every tick for list inertia and the cursor.
+`Strings`: localization from a UTF-8 `key=value` file, allocation-free lookup and `format(buf, key, a0, a1, a2)`.
+
+### 15.7 2D worlds
+`TileSet` (sprite sheet + animated tiles), `TileMap` (layers, tile flags SOLID / ONEWAY / LADDER / HAZARD / WATER / user bits,
+parallax per layer, objects, culled drawing, `raycast`, `overlapsFlag`), `Camera2D` (follow, bounds, zoom, shake, pixel snap,
+interpolation: call `update()` first, then `follow()`), `Body2D` (box vs tile map: gravity, walls, floors, one-way
+platforms, no tunnelling), `Collision2D` (box / circle tests), `ParallaxLayer`.
+Tiled maps: `python3 tools/tmx2map.py level.tmx out.map`, then `TileMap.load(bytes, tileSet)`. Tile properties
+`solid`, `oneway`, `ladder`, `hazard`, `water`, `user1..3` become flags; a layer named `collision` is the collision layer.
+Not included: slopes in `Body2D`, isometric / hexagonal maps, flipped tiles.
+
+### 15.8 Not in 1.2
+Render-to-texture / `readPixels`, point lights, shadows, submeshes, body rotation and mesh collision in physics.

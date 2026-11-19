@@ -157,6 +157,28 @@ public final class ResourceManager {
             lastError = name + ": " + e.getMessage();
             return null;
         }
+        return addModel(name, data);
+    }
+
+    /**
+     * Registers an already parsed model (see AsyncLoader: the file was read and parsed on a background thread) and
+     * uploads it. Same caching and reference counting as getModel(). Must run on the render thread.
+     */
+    public Model getModel(String name, ModelData data) {
+        for (int i = 0; i < modelCount; i++) {
+            if (models[i].name.equals(name)) {
+                models[i].refs++;
+                return models[i];
+            }
+        }
+        if (modelCount == models.length) {
+            lastError = "model table is full (" + name + ")";
+            return null;
+        }
+        return addModel(name, data);
+    }
+
+    private Model addModel(String name, ModelData data) {
         int diffuse = -1;
         int lightmap = -1;
         if (data.diffuseTexture != null) {

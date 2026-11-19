@@ -7,7 +7,7 @@ package skarph.core;
  */
 public final class Engine {
     /** The engine version. */
-    public static final String VERSION = "1.1";
+    public static final String VERSION = "1.2";
 
     public final InputQueue input = new InputQueue(256);
     public final Stats stats = new Stats();
@@ -19,7 +19,11 @@ public final class Engine {
     private Http http;
     private final Object lock = new Object();
     private Screen screen;
+    private Resizable resizable;
     private Screen pending;
+    private int surfaceW = -1;
+    private int surfaceH = -1;
+    private float alpha = 1f;
 
     /** Set by the platform layer. */
     public void setAssets(Assets assets) {
@@ -96,18 +100,32 @@ public final class Engine {
                 screen.dispose();
             }
             screen = p;
+            resizable = p instanceof Resizable ? (Resizable) p : null;
             screen.init(this, r);
             clock.reset();
+            surfaceW = -1; // the new screen hears the size right away
+            surfaceH = -1;
         }
         if (screen == null) {
             r.clear(0f, 0f, 0f);
             stats.frame(nowNanos, 0);
             return;
         }
+        int w = r.getWidth();
+        int h = r.getHeight();
+        if (w != surfaceW || h != surfaceH) {
+            surfaceW = w;
+            surfaceH = h;
+            if (resizable != null) {
+                resizable.resize(w, h);
+            }
+        }
         int n = clock.poll(nowNanos);
         for (int i = 0; i < n; i++) {
+            audio.update();
             screen.update();
         }
+        alpha = clock.getAlpha();
         stats.frame(nowNanos, n);
         screen.render(r);
     }
@@ -128,6 +146,14 @@ public final class Engine {
         if (screen != null) {
             screen.resume();
         }
+    }
+
+    /**
+     * Progress of the current frame between two logic ticks, 0..1 (see {@link TickClock#getAlpha()}). Read it in
+     * render() and pass it to Scene.render(r, camera, alpha) or use it to blend your own previous/current values.
+     */
+    public float getAlpha() {
+        return alpha;
     }
 
     public long getTotalTicks() {
