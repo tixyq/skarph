@@ -2,7 +2,7 @@
 package skarph.core;
 
 /** Convenience base class: empty implementations of the optional callbacks. */
-public abstract class ScreenAdapter implements Screen {
+public abstract class ScreenAdapter implements Screen, Resizable {
     public void init(Engine engine, Renderer renderer) {
     }
 
@@ -13,5 +13,8 @@ public abstract class ScreenAdapter implements Screen {
     }
 
     public void dispose() {
+    }
+
+    public void resize(int w, int h) {
     }
 }

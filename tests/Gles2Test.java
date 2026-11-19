@@ -116,6 +116,8 @@ public class Gles2Test {
             else if (name.equals("uTex0")) active = sprite || s.contains("#define TEX0");
             else if (name.equals("uTex1")) active = s.contains("#define LM");
             else if (name.equals("uFog") || name.equals("uFogColor")) active = s.contains("#define FOG");
+            else if (name.equals("uTint")) active = s.contains("#define TINT");
+            else if (name.equals("uCutoff")) active = s.contains("#define ATEST");
             else active = s.contains("#define LIT"); // uNormalMat, uLightDir, uAmbient, uLightColor
             if (!active) return -1;
             HashMap<String, Integer> m = uniformLoc.get(p);
@@ -123,6 +125,12 @@ public class Gles2Test {
             return m.get(name);
         }
         private long key(int loc) { return ((long) currentProgram << 32) | loc; }
+        public void uniform1f(int loc, float v) { if (loc >= 0) uniformVals.put(key(loc), new float[] {v}); }
+        public void uniform4f(int loc, float x, float y, float z, float w) { if (loc >= 0) uniformVals.put(key(loc), new float[] {x, y, z, w}); }
+        final ArrayList<int[]> scissors = new ArrayList<int[]>();
+        int arrayDraws, lastArrayMode, lastArrayCount;
+        public void scissor(int x, int y, int w, int h) { scissors.add(new int[] {x, y, w, h}); }
+        public void drawArrays(int mode, int first, int count) { arrayDraws++; lastArrayMode = mode; lastArrayCount = count; }
         public void uniform1i(int loc, int v) { if (loc >= 0) uniformInts.put(key(loc), v); }
         int uniform3fCalls;
         public void uniform3f(int loc, float x, float y, float z) { if (loc >= 0) { uniform3fCalls++; uniformVals.put(key(loc), new float[] {x, y, z}); } }
@@ -130,7 +138,8 @@ public class Gles2Test {
         public void uniformMatrix4fv(int loc, float[] v) { if (loc >= 0) uniformVals.put(key(loc), v.clone()); }
 
         public int genBuffer() { int id = next++; buffers.add(id); buffersCreated++; return id; }
-        public void bindBuffer(int target, int b) { if (target == GL_ARRAY_BUFFER) arrayBuf = b; else elemBuf = b; }
+        int bindBufferCalls, bindTextureCalls, attribPointerCalls;
+        public void bindBuffer(int target, int b) { bindBufferCalls++; if (target == GL_ARRAY_BUFFER) arrayBuf = b; else elemBuf = b; }
         public void bufferData(int target, int size, Buffer data, int usage) {
             bufferDataCalls++;
             int id = target == GL_ARRAY_BUFFER ? arrayBuf : elemBuf;
@@ -140,7 +149,7 @@ public class Gles2Test {
         public void deleteBuffer(int b) { buffers.remove(b); bufferBytes.remove(b); bufferShorts.remove(b); }
 
         public int genTexture() { int id = next++; textures.add(id); texturesCreated++; texParams.put(id, new HashMap<Integer, Integer>()); return id; }
-        public void bindTexture(int target, int t) { unitTex[activeUnit] = t; }
+        public void bindTexture(int target, int t) { bindTextureCalls++; unitTex[activeUnit] = t; }
         public void deleteTexture(int t) { textures.remove(t); }
         public void activeTexture(int unit) { activeUnit = unit - GL_TEXTURE0; }
         public void texParameteri(int target, int pname, int v) { texParams.get(unitTex[activeUnit]).put(pname, v); }

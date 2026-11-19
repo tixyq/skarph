@@ -45,6 +45,9 @@ public interface Gl2 {
     int GL_ARRAY_BUFFER = 0x8892;
     int GL_ELEMENT_ARRAY_BUFFER = 0x8893;
     int GL_STATIC_DRAW = 0x88E4;
+    int GL_DYNAMIC_DRAW = 0x88E8;
+    int GL_LINES = 0x0001;
+    int GL_SCISSOR_TEST = 0x0C11;
     int GL_FRAGMENT_SHADER = 0x8B30;
     int GL_VERTEX_SHADER = 0x8B31;
     int GL_COMPILE_STATUS = 0x8B81;
@@ -112,4 +115,15 @@ public interface Gl2 {
     void clear(int mask);
     int getError();
     String getString(int name);
+
+    // ---- added in 1.2 (defaults keep old fakes compiling; the real implementations override them) ----
+    default void uniform1f(int location, float value) {
+    }
+    default void uniform4f(int location, float x, float y, float z, float w) {
+    }
+    /** Scissor rectangle in GL window coordinates (origin bottom-left). */
+    default void scissor(int x, int y, int width, int height) {
+    }
+    default void drawArrays(int mode, int first, int count) {
+    }
 }

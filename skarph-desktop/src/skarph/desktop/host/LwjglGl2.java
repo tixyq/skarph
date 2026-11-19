@@ -222,6 +222,22 @@ final class LwjglGl2 implements Gl2 {
         GL11.glCullFace(mode);
     }
 
+    public void uniform1f(int location, float value) {
+        GL20.glUniform1f(location, value);
+    }
+
+    public void uniform4f(int location, float x, float y, float z, float w) {
+        GL20.glUniform4f(location, x, y, z, w);
+    }
+
+    public void scissor(int x, int y, int width, int height) {
+        GL11.glScissor(x, y, width, height);
+    }
+
+    public void drawArrays(int mode, int first, int count) {
+        GL11.glDrawArrays(mode, first, count);
+    }
+
     public void viewport(int x, int y, int width, int height) {
         GL11.glViewport(x, y, width, height);
     }

@@ -53,6 +53,41 @@ public final class Ray {
         return t < 0f ? -1f : t;
     }
 
+    /**
+     * Intersection with a vertical capsule (axis along y): the straight part from cy - halfHeight to cy + halfHeight
+     * plus two spherical caps. @return the distance, or -1 for a miss
+     */
+    public float intersectCapsule(float cx, float cy, float cz, float radius, float halfHeight) {
+        float best = -1f;
+        float t = intersectSphere(cx, cy + halfHeight, cz, radius);
+        if (t >= 0f) {
+            best = t;
+        }
+        t = intersectSphere(cx, cy - halfHeight, cz, radius);
+        if (t >= 0f && (best < 0f || t < best)) {
+            best = t;
+        }
+        float lx = ox - cx;
+        float lz = oz - cz;
+        float a = dx * dx + dz * dz;
+        if (a > 1e-12f) {
+            float b = lx * dx + lz * dz;
+            float c = lx * lx + lz * lz - radius * radius;
+            float disc = b * b - a * c;
+            if (disc >= 0f) {
+                float root = (float) Math.sqrt(disc);
+                float t0 = (-b - root) / a;
+                if (t0 >= 0f) {
+                    float y = oy + dy * t0;
+                    if (y >= cy - halfHeight && y <= cy + halfHeight && (best < 0f || t0 < best)) {
+                        best = t0;
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
     /** Slab test. Returns 0 if the origin is inside the box. */
     public float intersectAabb(Aabb box) {
         float tmin = -Float.MAX_VALUE;

@@ -121,4 +121,49 @@ public final class Collision {
         }
         return true;
     }
+
+    /**
+     * A vertical capsule (center cx, cy, cz, radius r, halfHeight hh) against a sphere. The normal points from the
+     * capsule toward the sphere.
+     */
+    public static boolean capsuleSphere(float cx, float cy, float cz, float r, float hh,
+                                        float sx, float sy, float sz, float sr, Contact c) {
+        float py = sy < cy - hh ? cy - hh : (sy > cy + hh ? cy + hh : sy);
+        return sphereSphere(cx, py, cz, r, sx, sy, sz, sr, c);
+    }
+
+    /** Two vertical capsules. The normal points from a toward b. */
+    public static boolean capsuleCapsule(float ax, float ay, float az, float ar, float ah,
+                                         float bx, float by, float bz, float br, float bh, Contact c) {
+        float lo = Math.max(ay - ah, by - bh);
+        float hi = Math.min(ay + ah, by + bh);
+        float ya;
+        float yb;
+        if (lo <= hi) {
+            ya = (lo + hi) * 0.5f;          // the axes overlap in height: compare at the same height
+            yb = ya;
+        } else if (ay > by) {
+            ya = ay - ah;                   // a is above b: its lower end against b's upper end
+            yb = by + bh;
+        } else {
+            ya = ay + ah;
+            yb = by - bh;
+        }
+        return sphereSphere(ax, ya, az, ar, bx, yb, bz, br, c);
+    }
+
+    /** A vertical capsule against a box. The normal points from the capsule toward the box. */
+    public static boolean capsuleAabb(float cx, float cy, float cz, float r, float hh, Aabb box, Contact c) {
+        float lo = Math.max(cy - hh, box.minY);
+        float hi = Math.min(cy + hh, box.maxY);
+        float y;
+        if (lo <= hi) {
+            y = (lo + hi) * 0.5f;           // the axis passes the box in height: contact is sideways
+        } else if (cy - hh > box.maxY) {
+            y = cy - hh;                    // box below: the lower end
+        } else {
+            y = cy + hh;                    // box above: the upper end
+        }
+        return sphereAabb(cx, y, cz, r, box, c);
+    }
 }

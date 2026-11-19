@@ -51,6 +51,18 @@ public final class TickClock {
         return n;
     }
 
+    /**
+     * How far the current frame is between the last logic tick and the next one, 0 (just ticked) to 1 (next tick due).
+     * Draw moving things at "previous + (current - previous) * alpha" and the motion stays smooth at any display rate.
+     */
+    public float getAlpha() {
+        if (!started) {
+            return 1f;
+        }
+        float a = (float) acc / (float) NANOS_PER_SECOND;
+        return a < 0f ? 0f : (a > 1f ? 1f : a);
+    }
+
     public long getTotalTicks() {
         return totalTicks;
     }

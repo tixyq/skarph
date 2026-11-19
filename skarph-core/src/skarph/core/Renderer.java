@@ -139,4 +139,97 @@ public interface Renderer {
      * Call setCamera() first (SpriteBatch.begin() does it).
      */
     void drawQuads(int texture, float[] vertices, int quadCount);
+
+    // ------------------------------------------------------------------------------------------------
+    // Added in 1.2. Every method below has a harmless default, so older implementations keep compiling;
+    // the platform backends override all of them (except where a method says otherwise).
+    // ------------------------------------------------------------------------------------------------
+
+    /** setBlendMode(): no blending, depth written (default). */
+    int BLEND_OPAQUE = 0;
+    /** setBlendMode(): alpha blending (glass, ghosts, fades); depth is tested but not written. */
+    int BLEND_ALPHA = 1;
+    /** setBlendMode(): colors are added (glow, light shafts); depth is tested but not written. */
+    int BLEND_ADD = 2;
+
+    /** Maximum number of vertices accepted by one drawLines() call (two per line). */
+    int MAX_LINE_VERTICES = 2048;
+
+    /** Floats per vertex in drawLines(): x, y, z, r, g, b, a. */
+    int LINE_FLOATS = 7;
+
+    /**
+     * Blend mode of the meshes drawn afterwards: BLEND_OPAQUE, BLEND_ALPHA or BLEND_ADD. The setting stays until
+     * the next call; sprites, billboards and sky ignore it. Transparent meshes must be drawn after the opaque ones,
+     * sorted back to front (Scene does that for nodes with a blend mode).
+     */
+    default void setBlendMode(int mode) {
+    }
+
+    /**
+     * Alpha test for the meshes drawn afterwards: pixels whose alpha (vertex color * texture * tint) is below
+     * {@code cutoff} are discarded and leave no trace in the depth buffer (fences, leaves). 0 = off (default).
+     */
+    default void setAlphaTest(float cutoff) {
+    }
+
+    /** true = back faces are not drawn (default); false = both sides (glass, leaves, thin planes). */
+    default void setCulling(boolean backFaceCulling) {
+    }
+
+    /**
+     * Multiplies the color and alpha of the meshes drawn afterwards (fade a ghost out, flash an enemy). (1,1,1,1) = off,
+     * the default. The ES 2.0 backend multiplies it with the vertex colors; the ES 1.x backend (fixed pipeline, no
+     * per-draw color multiplier on every device) draws the mesh with the tint INSTEAD of its vertex colors, so
+     * give meshes that are tinted a uniform vertex color or a texture.
+     */
+    default void setTint(float r, float g, float b, float a) {
+    }
+
+    /**
+     * Draws 3D line segments (debug shapes, laser beams, wireframes) with the current camera. data: per vertex
+     * {x, y, z, r, g, b, a} (LINE_FLOATS floats); vertices 2i and 2i+1 form line i. {@code vertexCount} is even, at most
+     * MAX_LINE_VERTICES. The depth test is on, nothing is lit or fogged; alpha below 1 is blended. One pixel wide.
+     * Normally called through DebugDraw.
+     */
+    default void drawLines(float[] data, int vertexCount) {
+    }
+
+    /**
+     * Restricts drawing to a rectangle of the surface, in pixels, origin TOP-LEFT (like touch coordinates): split
+     * screen, mini map, inset views. The projection should use the aspect ratio of w / h. clear() still clears the
+     * whole surface unless a scissor is on. Affects meshes, sprites, billboards and lines.
+     */
+    default void setViewport(int x, int y, int w, int h) {
+    }
+
+    /** Back to the whole surface. */
+    default void resetViewport() {
+    }
+
+    /** Clips drawing (and clear()) to a rectangle, in pixels, origin top-left; false switches clipping off. */
+    default void setScissor(boolean enabled, int x, int y, int w, int h) {
+    }
+
+    /** Clears only the depth buffer (draw a second view or a 3D HUD over the first one). */
+    default void clearDepth() {
+    }
+
+    /**
+     * Creates a mesh whose vertices you rewrite later with updateMesh() (ribbons, trails, procedural geometry, 3D
+     * text). Capacity is fixed: maxVertices (at most 65535) and maxIndices. Colors are always present. The mesh draws
+     * nothing until the first updateMesh(). @return handle or -1 (table full, or not supported)
+     */
+    default int createDynamicMesh(int maxVertices, int maxIndices, boolean normals, boolean uv0) {
+        return -1;
+    }
+
+    /**
+     * Replaces the contents of a dynamic mesh. Arrays are read from index 0: positions 3 floats per vertex, normals 3
+     * (null if the mesh was created without), colors 4 (0..1), uv0 2 (null if none), indices as triangles. Counts
+     * beyond the capacity are cut off. Allocates nothing. Cost grows with {@code vertexCount}: call it once per frame at most.
+     */
+    default void updateMesh(int mesh, float[] positions, float[] normals, float[] colors, float[] uv0,
+                            short[] indices, int vertexCount, int indexCount) {
+    }
 }

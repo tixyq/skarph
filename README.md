@@ -1,6 +1,10 @@
 <p align="center"><img src="icon.png" width="128" alt="Skarph"></p>
 
-# Skarph 1.1
+# Skarph 1.2
+
+New in 1.2: render interpolation, quaternions / tweens / easing, transparency and debug lines, capsule physics with a
+character controller, events, triggers and terrain, audio buses and 3D sound, Unicode (Cyrillic) fonts, text fields,
+on-screen keyboard, lists, tile maps with a Tiled converter. Details: docs/MANUAL.md section 15.
 
 A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation in the game loop, OpenGL ES 1.x
 and 2.0 backends with automatic choice. The core has no platform dependencies; it runs on Android and on Windows,
@@ -49,3 +53,18 @@ See [docs/MANUAL.md](docs/MANUAL.md), sections 2, 12 and 14.
 MIT License, see [LICENSE](LICENSE).
 
 Copyright (c) 2026 tixyq
+
+## Demo 1.2
+
+`demos/demo-v1.2` — a 3D arena that shows the 1.2 features (character controller, physics with sleeping, glass sorting,
+render interpolation, particles, sky, fog, font and Ui). Build and run on the desktop:
+
+    demos/demo-v1.2/build.sh && java -jar build/desktop/skarph-demo-v1.2.jar
+
+Drag on the left half of the window to walk, on the right half to turn the camera; buttons JUMP / CRATE; the SMOOTH
+toggle switches render interpolation off and on. `tests/Demo12Test.java` runs the same screen without a window.
+
+Android APK of the demo (needs the Android SDK build-tools 30+ and any android.jar):
+
+    skarph-android/build-android.sh demos/demo-v1.2 --sdk ~/Android/Sdk
+    adb install -r build/apk/demo-v1.2.apk

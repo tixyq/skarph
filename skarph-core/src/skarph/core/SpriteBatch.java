@@ -102,6 +102,92 @@ public final class SpriteBatch {
         count++;
     }
 
+    /**
+     * Clips the following sprites to a pixel rectangle of the screen (origin top-left). Pending sprites are drawn first.
+     * Needs a renderer with setScissor() (GLES2 and GLES1 in 1.2). Call clearScissor() when done.
+     */
+    public void setScissor(int px, int py, int pw, int ph) {
+        flush();
+        renderer.setScissor(true, px, py, pw, ph);
+    }
+
+    public void clearScissor() {
+        flush();
+        renderer.setScissor(false, 0, 0, 0, 0);
+    }
+
+    /**
+     * Nine-patch: the region's corners (left, top, right, bottom = border sizes in texture pixels) keep their size times
+     * borderScale, the edges stretch in one direction and the middle in both. For frames and buttons that scale cleanly.
+     */
+    public void drawNine(TextureRegion reg, float x, float y, float w, float h,
+                         float left, float top, float right, float bottom, float borderScale) {
+        float l = left * borderScale;
+        float t = top * borderScale;
+        float r = right * borderScale;
+        float b = bottom * borderScale;
+        if (l + r > w) {
+            float k = w / (l + r);
+            l *= k;
+            r *= k;
+        }
+        if (t + b > h) {
+            float k = h / (t + b);
+            t *= k;
+            b *= k;
+        }
+        float du = (reg.u1 - reg.u0) / reg.width;
+        float dv = (reg.v1 - reg.v0) / reg.height;
+        float u1 = reg.u0 + left * du;
+        float u2 = reg.u1 - right * du;
+        float v1 = reg.v0 + top * dv;
+        float v2 = reg.v1 - bottom * dv;
+        float x1 = x + l;
+        float x2 = x + w - r;
+        float y1 = y + t;
+        float y2 = y + h - b;
+        int tex = reg.texture;
+        quad(tex, x, y, x1, y1, reg.u0, reg.v0, u1, v1);
+        quad(tex, x1, y, x2, y1, u1, reg.v0, u2, v1);
+        quad(tex, x2, y, x + w, y1, u2, reg.v0, reg.u1, v1);
+        quad(tex, x, y1, x1, y2, reg.u0, v1, u1, v2);
+        quad(tex, x1, y1, x2, y2, u1, v1, u2, v2);
+        quad(tex, x2, y1, x + w, y2, u2, v1, reg.u1, v2);
+        quad(tex, x, y2, x1, y + h, reg.u0, v2, u1, reg.v1);
+        quad(tex, x1, y2, x2, y + h, u1, v2, u2, reg.v1);
+        quad(tex, x2, y2, x + w, y + h, u2, v2, reg.u1, reg.v1);
+    }
+
+    /** Repeats the region over the rectangle at its own pixel size times scale; the last tiles are cut, not stretched. */
+    public void drawTiled(TextureRegion reg, float x, float y, float w, float h, float scale) {
+        float tw = reg.width * scale;
+        float th = reg.height * scale;
+        if (tw <= 0f || th <= 0f) {
+            return;
+        }
+        for (float ty = 0f; ty < h; ty += th) {
+            float hh = h - ty < th ? h - ty : th;
+            float v1 = reg.v0 + (reg.v1 - reg.v0) * (hh / th);
+            for (float tx = 0f; tx < w; tx += tw) {
+                float ww = w - tx < tw ? w - tx : tw;
+                float u1 = reg.u0 + (reg.u1 - reg.u0) * (ww / tw);
+                quad(reg.texture, x + tx, y + ty, x + tx + ww, y + ty + hh, reg.u0, reg.v0, u1, v1);
+            }
+        }
+    }
+
+    private void quad(int tex, float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1) {
+        if (x1 <= x0 || y1 <= y0) {
+            return;
+        }
+        prepare(tex);
+        vertex(x0, y0, u0, v0);
+        vertex(x1, y0, u1, v0);
+        vertex(x1, y1, u1, v1);
+        vertex(x0, y1, u0, v1);
+        count++;
+    }
+
     private void prepare(int tex) {
         if (!drawing) {
             throw new IllegalStateException("draw() outside begin()/end()");

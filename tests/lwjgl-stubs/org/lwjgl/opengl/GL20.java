@@ -17,6 +17,8 @@ public class GL20 {
     public static int glGetUniformLocation(int p, CharSequence n) { return 0; }
     public static void glUniform1i(int l, int v) { }
     public static void glUniform3f(int l, float x, float y, float z) { }
+    public static void glUniform1f(int l, float x) { }
+    public static void glUniform4f(int l, float x, float y, float z, float w) { }
     public static void glUniformMatrix3fv(int l, boolean t, float[] v) { }
     public static void glUniformMatrix4fv(int l, boolean t, float[] v) { }
     public static void glEnableVertexAttribArray(int i) { }

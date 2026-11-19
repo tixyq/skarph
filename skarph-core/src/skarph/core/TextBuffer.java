@@ -19,6 +19,14 @@ public final class TextBuffer {
         return this;
     }
 
+    /** Removes the last character (if any). */
+    public TextBuffer deleteLast() {
+        if (len > 0) {
+            len--;
+        }
+        return this;
+    }
+
     public TextBuffer append(char c) {
         if (len < buf.length) {
             buf[len++] = c;

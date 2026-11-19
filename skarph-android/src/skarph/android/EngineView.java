@@ -57,7 +57,7 @@ public final class EngineView extends GLSurfaceView {
         super(context);
         this.engine = engine;
         engine.setAssets(new AndroidAssets(context.getAssets()));
-        engine.setAudio(new AndroidAudio(context.getAssets()));
+        engine.setAudio(new skarph.core.AudioMixer(new AndroidAudio(context.getAssets())));
         engine.setStorage(new AndroidStorage(context));
 
         boolean gles2 = isGles2Supported(context);

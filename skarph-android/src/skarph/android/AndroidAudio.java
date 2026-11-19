@@ -13,7 +13,7 @@ import android.util.Log;
 import skarph.core.Audio;
 
 /**
- * skarph.core.Audio for Android: SoundPool for short effects (loaded asynchronously by the system,
+ * skarph.core.Audio backend for Android (EngineView wraps it in AudioMixer): SoundPool for short effects (loaded asynchronously by the system,
  * so playSound() returns -1 until a sound is ready) and MediaPlayer for streamed music.
  * Use .ogg, .wav or .mp3 files in assets: those extensions are stored uncompressed in the APK,
  * which openFd() needs. The SoundPool is created on first use. Methods are synchronized
@@ -95,6 +95,18 @@ public final class AndroidAudio implements Audio {
                 loopStreams[i] = loopStreams[--loopCount];
                 break;
             }
+        }
+    }
+
+    public synchronized void setStreamGain(int stream, float left, float right) {
+        if (pool != null && stream > 0) {
+            pool.setVolume(stream, left < 0f ? 0f : (left > 1f ? 1f : left), right < 0f ? 0f : (right > 1f ? 1f : right));
+        }
+    }
+
+    public synchronized void setStreamRate(int stream, float pitch) {
+        if (pool != null && stream > 0) {
+            pool.setRate(stream, pitch < 0.5f ? 0.5f : (pitch > 2f ? 2f : pitch));
         }
     }
 

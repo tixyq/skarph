@@ -183,6 +183,22 @@ final class AndroidGl2 implements Gl2 {
         GLES20.glCullFace(mode);
     }
 
+    public void uniform1f(int location, float value) {
+        GLES20.glUniform1f(location, value);
+    }
+
+    public void uniform4f(int location, float x, float y, float z, float w) {
+        GLES20.glUniform4f(location, x, y, z, w);
+    }
+
+    public void scissor(int x, int y, int width, int height) {
+        GLES20.glScissor(x, y, width, height);
+    }
+
+    public void drawArrays(int mode, int first, int count) {
+        GLES20.glDrawArrays(mode, first, count);
+    }
+
     public void viewport(int x, int y, int width, int height) {
         GLES20.glViewport(x, y, width, height);
     }

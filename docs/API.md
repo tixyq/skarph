@@ -29,6 +29,7 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `void frame(long nowNanos, Renderer r)` |  |
 | `void pause()` | Call on the render thread when the app is paused (sent to the background, window minimized). |
 | `void resume()` | Call on the render thread when the app comes back. |
+| `float getAlpha()` | Progress of the current frame between two logic ticks, 0..1 (see TickClock#getAlpha()). |
 | `long getTotalTicks()` |  |
 
 ### `Screen`
@@ -54,6 +55,42 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `void pause()` |  |
 | `void resume()` |  |
 | `void dispose()` |  |
+| `void resize(int w, int h)` |  |
+
+### `Resizable`
+
+`skarph.core.Resizable` - Optional interface of a Screen: told when the drawing surface changes size (window resized, device rotated, fullscreen toggled) and once right after init() with the initial size.
+
+| Member | Description |
+|---|---|
+| `void resize(int w, int h)` | The surface is now w x h pixels. |
+
+### `AsyncLoader`
+
+`skarph.core.AsyncLoader` - Loads models, textures and raw files without freezing the game.
+
+| Member | Description |
+|---|---|
+| `static final int PENDING` | getState(): the request waits for or is being processed by the worker, or waits for pump(). |
+| `static final int DONE` | getState(): the result can be read. |
+| `static final int FAILED` | getState(): loading failed (see getError()). |
+| `static final int INVALID` | getState(): the ticket is not valid (never issued, or released). |
+| `AsyncLoader(Assets assets, ResourceManager resources, int capacity)` |  |
+| `int requestModel(String assetName)` | Asks for a model file (MDL1/MDL2) and its textures. |
+| `int requestTexture(String assetName, boolean smooth, boolean repeat)` | Asks for a texture (see Renderer.loadTexture). |
+| `int requestBytes(String assetName)` | Asks for the raw bytes of a file (levels, maps, sounds' data, strings). |
+| `int pump(long budgetNanos)` | Finishes ready requests on the render thread, in the order they were requested: uploads models and textures. |
+| `int getState(int ticket)` | PENDING, DONE, FAILED or INVALID. |
+| `boolean isDone(int ticket)` |  |
+| `String getError(int ticket)` | The failure text of a FAILED ticket, else null. |
+| `ResourceManager.Model getModel(int ticket)` | The loaded model of a DONE model request (reference counted by the ResourceManager), else null. |
+| `int getTexture(int ticket)` | The texture handle of a DONE texture request, else -1. |
+| `byte[] getBytes(int ticket)` | The bytes of a DONE bytes request, else null. |
+| `void release(int ticket)` | Frees the ticket's slot (the model or texture stays loaded in the ResourceManager). |
+| `int getPendingCount()` | Requests that are not finished yet. |
+| `boolean isIdle()` | True when no request is waiting (finished ones may still hold their tickets). |
+| `float getProgress()` | 0..1: finished / requested since the last time the loader was idle (for a progress bar). |
+| `void shutdown()` | Stops the worker thread. |
 
 ### `TickClock`
 
@@ -65,6 +102,7 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `static final int MAX_CATCHUP_TICKS` | Protection against the "spiral of death" after long stalls. |
 | `void reset()` | Forget the previous timestamp (call after pause / long stalls). |
 | `int poll(long nowNanos)` | Returns how many ticks must be executed now (0..MAX_CATCHUP_TICKS). |
+| `float getAlpha()` | How far the current frame is between the last logic tick and the next one, 0 (just ticked) to 1 (next tick due). |
 | `long getTotalTicks()` |  |
 
 ### `InputEvent`
@@ -161,6 +199,59 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `float length()` |  |
 | `Vec3 normalize()` |  |
 
+### `Vec2`
+
+`skarph.core.Vec2` - A 2D vector that works in place and returns this; it never allocates after construction.
+
+| Member | Description |
+|---|---|
+| `float x` |  |
+| `float y` |  |
+| `Vec2()` |  |
+| `Vec2(float x, float y)` |  |
+| `Vec2 set(float x, float y)` |  |
+| `Vec2 set(Vec2 v)` |  |
+| `Vec2 add(Vec2 v)` |  |
+| `Vec2 add(float dx, float dy)` |  |
+| `Vec2 sub(Vec2 v)` |  |
+| `Vec2 scale(float s)` |  |
+| `float dot(Vec2 v)` |  |
+| `float cross(Vec2 v)` | The z component of the 3D cross product: positive when v is counter-clockwise from this. |
+| `float lengthSq()` |  |
+| `float length()` |  |
+| `float distanceTo(Vec2 v)` |  |
+| `Vec2 normalize()` | Scales to length 1; a zero vector stays zero. |
+| `Vec2 rotate(float deg)` | Rotates counter-clockwise by the angle in degrees. |
+| `float angle()` | Angle of the vector in degrees, -180..180 (0 = +x). |
+| `Vec2 lerp(Vec2 a, Vec2 b, float t)` | this = a + (b - a) * t. |
+
+### `Quat`
+
+`skarph.core.Quat` - A unit quaternion (x, y, z, w) for rotations without gimbal lock and with smooth interpolation.
+
+| Member | Description |
+|---|---|
+| `float x` |  |
+| `float y` |  |
+| `float z` |  |
+| `float w` |  |
+| `Quat()` |  |
+| `Quat(float x, float y, float z, float w)` |  |
+| `Quat setIdentity()` |  |
+| `Quat set(float x, float y, float z, float w)` |  |
+| `Quat set(Quat q)` |  |
+| `Quat setAxisAngle(float angleDeg, float ax, float ay, float az)` | Rotation by an angle around an axis (the axis need not be normalized; a zero axis gives the identity). |
+| `Quat setEuler(float rx, float ry, float rz)` | The same rotation as Node.setRotation(rx, ry, rz): Z first, then X, then Y (matrix = Ry * Rx * Rz), degrees. |
+| `Quat multiply(Quat a, Quat b)` | this = a * b (apply b first, then a). |
+| `Quat conjugate()` |  |
+| `float dot(Quat q)` |  |
+| `Quat normalize()` | Scales to length 1 (call it now and then when you multiply many rotations); a zero quaternion becomes the identity. |
+| `Quat slerp(Quat a, Quat b, float t)` | Spherical interpolation along the shortest arc: a at t = 0, b at t = 1. |
+| `Quat nlerp(Quat a, Quat b, float t)` | Cheap interpolation: blend and normalize (speed not constant, fine for small angles). |
+| `void rotate(Vec3 v)` | Rotates the vector in place. |
+| `Quat setLookRotation(float fx, float fy, float fz, float ux, float uy, float uz)` | The rotation that turns the local -z axis (the OpenGL view direction) to look along (fx, fy, fz) with (ux, uy, uz) as the approximate up direction. |
+| `void toEuler(Vec3 out)` | Writes the Euler angles (degrees, order of Node.setRotation) into out: x = rx, y = ry, z = rz. |
+
 ### `Mat4`
 
 `skarph.core.Mat4` - 4x4 float matrix, column-major (same layout as OpenGL): element at row r, column c is m[c * 4 + r].
@@ -175,6 +266,10 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `Mat4 translate(float x, float y, float z)` | this = this * Translation(x, y, z) |
 | `Mat4 scale(float x, float y, float z)` | this = this * Scale(x, y, z) |
 | `Mat4 rotate(float angleDeg, float x, float y, float z)` | this = this * Rotation(angleDegrees, axis). |
+| `Mat4 rotateQuat(float qx, float qy, float qz, float qw)` | this = this * Rotation(q) for a unit quaternion (x, y, z, w), see Quat. |
+| `Mat4 rotate(Quat q)` | this = this * Rotation(q). |
+| `Mat4 lerp(Mat4 a, Mat4 b, float t)` | this = a + (b - a) * t, element by element. |
+| `Mat4 lerpRigid(Mat4 a, Mat4 b, float t)` | Like lerp(), but keeps the axes the right length: blending two rotated poses element by element shrinks the object halfway (a 90 degree turn would be drawn 30% smaller). |
 | `Mat4 rotateX(float angleDeg)` | this = this * RotationX(angleDegrees). |
 | `Mat4 rotateY(float angleDeg)` | this = this * RotationY(angleDegrees). |
 | `Mat4 rotateZ(float angleDeg)` | this = this * RotationZ(angleDegrees). |
@@ -192,6 +287,76 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 |---|---|
 | `static float sin(float degrees)` |  |
 | `static float cos(float degrees)` |  |
+| `static float lerp(float a, float b, float t)` | Linear interpolation: a at t = 0, b at t = 1. |
+| `static float clamp(float v, float lo, float hi)` |  |
+| `static int clamp(int v, int lo, int hi)` |  |
+| `static float smoothstep(float e0, float e1, float v)` | 0 below e0, 1 above e1, a smooth S curve in between (requires e0 &lt; e1). |
+| `static float wrapAngle(float deg)` | Wraps an angle in degrees into -180..180. |
+| `static float angleDelta(float a, float b)` | Shortest signed turn from angle a to angle b, in degrees (-180..180). |
+| `static float atan2(float y, float x)` | Arc tangent of y / x in DEGREES, -180..180, error below 0.001 degrees. |
+| `static float acos(float v)` | Arc cosine in degrees for v in -1..1 (clamped). |
+| `static float asin(float v)` | Arc sine in degrees for v in -1..1 (clamped). |
+| `static int floor(float v)` | floor() as an int, without Math.floor (a native call that is slow on old Dalvik). |
+
+### `Ease`
+
+`skarph.core.Ease` - Easing curves: map progress t (0..1) to a shaped progress (0..1, some overshoot).
+
+| Member | Description |
+|---|---|
+| `static final int LINEAR` |  |
+| `static final int IN_QUAD` |  |
+| `static final int OUT_QUAD` |  |
+| `static final int IN_OUT_QUAD` |  |
+| `static final int IN_CUBIC` |  |
+| `static final int OUT_CUBIC` |  |
+| `static final int IN_OUT_CUBIC` |  |
+| `static final int IN_SINE` |  |
+| `static final int OUT_SINE` |  |
+| `static final int IN_OUT_SINE` |  |
+| `static final int IN_EXPO` |  |
+| `static final int OUT_EXPO` |  |
+| `static final int IN_BACK` |  |
+| `static final int OUT_BACK` |  |
+| `static final int OUT_ELASTIC` |  |
+| `static final int OUT_BOUNCE` |  |
+| `static final int SMOOTH` | Smoothstep: 3t^2 - 2t^3. |
+| `static final int SMOOTHER` | Smootherstep: 6t^5 - 15t^4 + 10t^3. |
+| `static final int COUNT` | Number of curves (valid ids are 0 .. |
+| `static float apply(int type, float t)` | Shaped progress for t, clamped to 0..1 first. |
+
+### `Tween`
+
+`skarph.core.Tween` - A value that moves from one number to another over a number of logic ticks with an easing curve.
+
+| Member | Description |
+|---|---|
+| `Tween()` |  |
+| `Tween(float from, float to, int durationTicks, int ease)` |  |
+| `Tween start(float from, float to, int durationTicks, int ease)` | (Re)starts the tween. |
+| `Tween setDelay(int ticks)` | Waits this many ticks before the movement begins (call after start()). |
+| `void update()` | Call once per logic tick. |
+| `float getValue()` | The value at the last tick. |
+| `float getValue(float alpha)` | The value a fraction of a tick later: pass Engine.getAlpha() in render() for motion that is smooth at any frame rate. |
+| `boolean isFinished()` |  |
+| `void finish()` | Jumps to the end value. |
+| `float getTarget()` |  |
+
+### `Plane`
+
+`skarph.core.Plane` - A plane n .
+
+| Member | Description |
+|---|---|
+| `float nx` |  |
+| `float ny` |  |
+| `float nz` |  |
+| `float d` |  |
+| `Plane set(float px, float py, float pz, float nx, float ny, float nz)` | Plane through a point with the given normal (normalized here; a zero normal gives y up). |
+| `Plane setFromPoints(float ax, float ay, float az, float bx, float by, float bz, float cx, float cy, float cz)` | Plane through three points, counter-clockwise seen from the front. |
+| `float distance(float x, float y, float z)` | Signed distance of a point: positive in front, negative behind. |
+| `float raycast(Ray ray)` | Distance along the ray to the plane, or -1 if the ray is parallel or points away. |
+| `int classify(Aabb b)` | -1 box completely behind, +1 completely in front, 0 crossing the plane. |
 
 ### `Aabb`
 
@@ -228,6 +393,7 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `Ray set(float ox, float oy, float oz, float dx, float dy, float dz)` | Sets origin and direction (the direction is normalized here). |
 | `void pointAt(float t, Vec3 out)` | Writes the point at distance t into out. |
 | `float intersectSphere(float cx, float cy, float cz, float radius)` |  |
+| `float intersectCapsule(float cx, float cy, float cz, float radius, float halfHeight)` | Intersection with a vertical capsule (axis along y): the straight part from cy - halfHeight to cy + halfHeight plus two spherical caps. |
 | `float intersectAabb(Aabb box)` | Slab test. |
 | `float intersectPlaneY(float planeY)` | Intersection with the horizontal plane y = planeY. |
 
@@ -309,6 +475,7 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 |---|---|
 | `TextBuffer(int capacity)` |  |
 | `TextBuffer clear()` |  |
+| `TextBuffer deleteLast()` | Removes the last character (if any). |
 | `TextBuffer append(char c)` |  |
 | `TextBuffer append(String s)` |  |
 | `TextBuffer append(int value)` |  |
@@ -370,6 +537,8 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `Camera lookAt(float ex, float ey, float ez, float cx, float cy, float cz, float ux, float uy, float uz)` |  |
 | `void updateFrustum()` | Recomputes the frustum planes. |
 | `boolean screenToRay(float sx, float sy, int viewW, int viewH, Ray out)` | Converts a screen position (pixels, origin top-left, y down) into a world space ray, for picking. |
+| `boolean isAabbVisible(float minX, float minY, float minZ, float maxX, float maxY, float maxZ)` | Returns false only if the box is completely outside the frustum (tighter than a sphere for long thin things). |
+| `boolean isAabbVisible(Aabb box)` |  |
 | `boolean isSphereVisible(float x, float y, float z, float radius)` | Returns false only if the sphere is completely outside the frustum. |
 
 ### `Shapes`
@@ -436,6 +605,30 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `void draw(TextureRegion reg, float x, float y, float z, float w, float h)` | A billboard of size w x h (world units) centered at (x, y, z), showing the whole region. |
 | `void drawFlat(TextureRegion reg, float x, float y, float z, float w, float depth)` | A flat quad lying on the ground (y = height of the plane): w along x, depth along z, the top of the region towards -z. |
 
+### `DebugDraw`
+
+`skarph.core.DebugDraw` - Immediate-mode 3D debug shapes made of lines: boxes, spheres, capsules, rays, axes, grids, frusta of bodies.
+
+| Member | Description |
+|---|---|
+| `int dropped` | Number of vertices that did not fit since the last flush. |
+| `DebugDraw(int maxLines)` |  |
+| `DebugDraw setColor(float r, float g, float b, float a)` |  |
+| `DebugDraw setColor(float r, float g, float b)` |  |
+| `int getLineCount()` |  |
+| `DebugDraw line(float x0, float y0, float z0, float x1, float y1, float z1)` |  |
+| `DebugDraw ray(Ray ray, float length)` | A ray: from its origin, length units long. |
+| `DebugDraw cross(float x, float y, float z, float size)` |  |
+| `DebugDraw axes(float x, float y, float z, float size)` | Three axes of length size at a point: red x, green y, blue z. |
+| `DebugDraw box(Aabb b)` |  |
+| `DebugDraw box(float x0, float y0, float z0, float x1, float y1, float z1)` |  |
+| `DebugDraw circle(float cx, float cy, float cz, float radius, int axis, int segments)` | A horizontal circle (axis 1 = y), a vertical one in the xy plane (axis 0 = z) or in the zy plane (axis 2 = x). |
+| `DebugDraw sphere(float cx, float cy, float cz, float radius)` | Three great circles: cheap and readable. |
+| `DebugDraw capsule(float cx, float cy, float cz, float radius, float halfHeight)` | A vertical capsule: the center is the middle of the axis, halfHeight is the half length of the straight part. |
+| `DebugDraw grid(float cx, float y0, float cz, float cell, int cells)` | A flat grid on the plane y = y0, centered on (cx, cz): cells x cells squares of the given size. |
+| `void flush(Renderer r)` | Draws everything collected (in batches of MAX_LINE_VERTICES) and empties the buffer. |
+| `void clear()` | Forgets everything collected without drawing. |
+
 ## 2D
 
 ### `SpriteBatch`
@@ -452,6 +645,10 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `void draw(TextureRegion reg, float x, float y)` |  |
 | `void draw(TextureRegion reg, float x, float y, float w, float h)` |  |
 | `void drawRotated(TextureRegion reg, float cx, float cy, float w, float h, float angleDeg)` | Draws a sprite of size w x h centered at (cx, cy), rotated by angleDeg (clockwise on a y-down screen). |
+| `void setScissor(int px, int py, int pw, int ph)` | Clips the following sprites to a pixel rectangle of the screen (origin top-left). |
+| `void clearScissor()` |  |
+| `void drawNine(TextureRegion reg, float x, float y, float w, float h, float left, float top, float right, float bottom, float borderScale)` | Nine-patch: the region's corners (left, top, right, bottom = border sizes in texture pixels) keep their size times borderScale, the edges stretch in one direction and the middle in both. |
+| `void drawTiled(TextureRegion reg, float x, float y, float w, float h, float scale)` | Repeats the region over the rectangle at its own pixel size times scale; the last tiles are cut, not stretched. |
 
 ### `TextureRegion`
 
@@ -482,16 +679,36 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 
 ### `BitmapFont`
 
-`skarph.core.BitmapFont` - Fixed-width bitmap font.
+`skarph.core.BitmapFont` - Bitmap font in two flavours, one API.
 
 | Member | Description |
 |---|---|
-| `BitmapFont(TextureRegion[] glyphs, int firstChar)` |  |
+| `static final int ALIGN_LEFT` |  |
+| `static final int ALIGN_CENTER` |  |
+| `static final int ALIGN_RIGHT` |  |
+| `BitmapFont(TextureRegion[] glyphs, int firstChar)` | Fixed width font from a sprite sheet. |
+| `static BitmapFont fromData(int texture, int texW, int texH, byte[] d)` | A proportional font from the .fnt file made by tools/make_font.py ("SKF1" + glyph table) and its texture. |
 | `void setScale(float scale)` |  |
+| `float getScale()` |  |
 | `float getLineHeight()` |  |
-| `float getTextWidth(int chars)` |  |
+| `boolean isProportional()` |  |
+| `float getTextWidth(int chars)` | Width of this many average characters (the width of a space for proportional fonts). |
+| `boolean hasGlyph(char c)` | True if the font has a glyph for this character. |
+| `float getCharWidth(char c)` | Width in pixels of one character at the current scale. |
+| `float getTextWidth(String text)` | Width of the widest line of the text. |
+| `float getTextWidth(TextBuffer text)` |  |
 | `void draw(SpriteBatch batch, String text, float x, float y)` |  |
 | `void draw(SpriteBatch batch, TextBuffer text, float x, float y)` |  |
+| `void drawAligned(SpriteBatch batch, String text, float x, float y, float boxW, int align)` | One line inside a box of width boxW, aligned. |
+| `void drawAligned(SpriteBatch batch, TextBuffer text, float x, float y, float boxW, int align)` |  |
+| `void drawChar(SpriteBatch batch, char c, float x, float y, float boxW, int align)` | One character aligned in a box (keyboard keys). |
+| `void drawEllipsized(SpriteBatch batch, String text, float x, float y, float maxWidth)` | One line, cut with "..." if it is wider than maxWidth. |
+| `void drawEllipsized(SpriteBatch batch, TextBuffer text, float x, float y, float maxWidth)` |  |
+| `int drawWrapped(SpriteBatch batch, String text, float x, float y, float maxWidth, int align, int maxLines)` | Word wrapped text in a column of width maxWidth (breaks at spaces and '\n'; a word longer than the column is broken anywhere). |
+| `int drawWrapped(SpriteBatch batch, TextBuffer text, float x, float y, float maxWidth, int align, int maxLines)` |  |
+| `int countLines(String text, float maxWidth)` | How many lines drawWrapped() would use. |
+| `int countLines(TextBuffer text, float maxWidth)` |  |
+| `float getWrappedWidth(TextBuffer text, float maxWidth)` | Width of the widest line when wrapped to maxWidth (<= maxWidth). |
 
 ### `Ui`
 
@@ -504,6 +721,10 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `static final int TOGGLE` |  |
 | `static final int SLIDER` |  |
 | `static final int PANEL` |  |
+| `static final int IMAGE` |  |
+| `static final int TEXTFIELD` |  |
+| `static final int LIST` |  |
+| `static final int KEYBOARD` |  |
 | `static final int LEFT` |  |
 | `static final int CENTER` |  |
 | `static final int RIGHT` |  |
@@ -522,6 +743,7 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `final float[] colTextDisabled` |  |
 | `final float[] colTrack` |  |
 | `final float[] colKnob` |  |
+| `boolean textShadow` | Draw a dark copy of every text one pixel down-right (readable on any background). |
 | `Ui(int maxWidgets, int textCapacity, SpriteBatch batch, BitmapFont font, TextureRegion white)` |  |
 | `void setListener(Listener listener)` |  |
 | `void setViewport(float virtualW, float virtualH, int screenW, int screenH)` | Call at start-up and whenever the screen size changes. |
@@ -530,10 +752,31 @@ Nested: `Pool.Poolable` - Optional: objects implementing this are reset() when r
 | `int addButton(String label, float px, float py, float pw, float ph, int anchorX, int anchorY, float textScale)` |  |
 | `int addToggle(String label, float px, float py, float pw, float ph, int anchorX, int anchorY, float textScale, boolean isChecked)` |  |
 | `int addSlider(float px, float py, float pw, float ph, int anchorX, int anchorY, float initial)` |  |
+| `int addImage(TextureRegion region, float px, float py, float pw, float ph, int anchorX, int anchorY)` |  |
+| `int addTextField(String initial, float px, float py, float pw, float ph, int anchorX, int anchorY, float textScale)` | A one line input box. |
+| `int addList(float px, float py, float pw, float ph, int anchorX, int anchorY, int maxItems, int itemChars, float rowHeight, float textScale)` | A scrolling list of single line items. |
+| `int addKeyboard(float px, float py, float pw, float ph, int anchorX, int anchorY, float textScale)` | An on-screen keyboard (Latin, Cyrillic, digits and symbols) that types into the focused text field. |
+| `void setSkin(TextureRegion panel, TextureRegion button, TextureRegion buttonDown, float border, float borderScale)` | Draws panels, buttons and toggles with nine-patch regions (border in texture pixels) instead of flat colors. |
+| `void setImage(int id, TextureRegion region)` |  |
+| `void setWrap(int id, float width, int alignment)` | Word wraps a label to this width (0 = no wrapping) and aligns its lines (BitmapFont.ALIGN_*). |
 | `void clear()` |  |
 | `int getCount()` |  |
 | `TextBuffer text(int id)` | The widget's text. |
 | `void setText(int id, String s)` |  |
+| `TextBuffer listText(int id, int index)` | Item text of a list; fill it with append(): no allocation. |
+| `int listAdd(int id, String s)` | Adds an item. |
+| `void listClear(int id)` |  |
+| `int listCount(int id)` |  |
+| `int getSelected(int id)` |  |
+| `void setSelected(int id, int index)` |  |
+| `void listScrollTo(int id, int index)` | Scrolls so that the item is visible. |
+| `int getFocus()` | The text field that receives typing, or -1. |
+| `void setFocus(int id)` |  |
+| `void bindKeyboard(int keyboardId)` | The keyboard widget is shown when a text field gets the focus and hidden when something else is touched. |
+| `void typeChar(char c)` | Types a character into the focused field (hardware keyboards, your own keys). |
+| `void backspace()` |  |
+| `void typeEnter()` |  |
+| `void update()` | Per logic tick (60 per second): list inertia and the text cursor blink. |
 | `void setVisible(int id, boolean v)` |  |
 | `void setEnabled(int id, boolean e)` |  |
 | `boolean isEnabled(int id)` |  |
@@ -561,6 +804,181 @@ Nested: `Ui.Listener`
 | `void onClick(int id)` | A button was released inside its bounds, or a toggle changed (see isChecked). |
 | `void onValueChanged(int id, float value)` | A slider was moved by the user. |
 
+### `Strings`
+
+`skarph.core.Strings` - Localization: a table of texts by key, loaded from a UTF-8 file of "key=value" lines ('#' starts a comment, "\n" in a value is a line break, "{0}" "{1}" are arguments).
+
+| Member | Description |
+|---|---|
+| `Strings(int capacity)` |  |
+| `int load(byte[] utf8)` | Replaces all texts with those of the file. |
+| `void clear()` |  |
+| `void put(String key, String value)` | Adds or replaces one text. |
+| `boolean has(String key)` |  |
+| `int size()` |  |
+| `String get(String key)` | The text, or the key if there is none. |
+| `TextBuffer format(TextBuffer out, String key, int a0)` |  |
+| `TextBuffer format(TextBuffer out, String key, int a0, int a1)` |  |
+| `TextBuffer format(TextBuffer out, String key, int a0, int a1, int a2)` | Appends the text with {0}, {1}, {2} replaced by the numbers. |
+| `TextBuffer format(TextBuffer out, String key, String s0)` | Appends the text with {0} replaced by a string. |
+
+## 2D worlds
+
+### `Camera2D`
+
+`skarph.core.Camera2D` - A 2D camera: position, zoom, smooth follow, level bounds, screen shake and render interpolation.
+
+| Member | Description |
+|---|---|
+| `Camera2D(float viewW, float viewH)` |  |
+| `float getX()` |  |
+| `float getY()` |  |
+| `float getZoom()` |  |
+| `void setZoom(float zoom)` |  |
+| `void setPixelSnap(boolean snap)` |  |
+| `void setBounds(float minX, float minY, float maxX, float maxY)` | Limits the view to a rectangle of the world (the camera stays inside it; if it is smaller than the view: centred). |
+| `void clearBounds()` |  |
+| `void setPosition(float cx, float cy)` | Jumps to a position without smoothing or interpolation (new level, teleport). |
+| `void follow(float tx, float ty, float smoothing)` | Moves a fraction (0..1) of the way to the target; call once per tick. |
+| `void shake(float amplitude, int ticks)` | Shakes for this many ticks; the amplitude (world units) fades out linearly. |
+| `void update()` | Once per tick, BEFORE follow(): remembers the position for interpolation and advances the shake. |
+| `Mat4 getProjection(Mat4 out, float alpha)` | Fills an orthographic projection (y down) for SpriteBatch.begin() and remembers the visible rectangle. |
+| `float getLeft()` | Edges of the visible area as of the last getProjection(). |
+| `float getTop()` |  |
+| `float getRight()` |  |
+| `float getBottom()` |  |
+| `boolean isVisible(float rx, float ry, float rw, float rh)` | True if a rectangle of the world is at least partly visible (as of the last getProjection()). |
+| `float screenToWorldX(float sx, int screenW)` | World x under a screen x (pixels), as of the last getProjection(). |
+| `float screenToWorldY(float sy, int screenH)` |  |
+| `float worldToScreenX(float wx, int screenW)` |  |
+| `float worldToScreenY(float wy, int screenH)` |  |
+
+### `TileSet`
+
+`skarph.core.TileSet` - The pictures of a tile map: a sprite sheet cut into equal cells.
+
+| Member | Description |
+|---|---|
+| `TileSet(int texture, int texW, int texH, int tileW, int tileH)` |  |
+| `int getTileWidth()` |  |
+| `int getTileHeight()` |  |
+| `int getTileCount()` |  |
+| `void setAnimation(int id, int[] frameIds, int ticksPerFrame)` | Draws tile 'id' as the sequence of tile ids, each shown for ticksPerFrame ticks (water, torches, coins). |
+| `void update()` | Once per tick: advances the animations. |
+| `TextureRegion get(int id)` | The picture to draw for a tile id (animation resolved), or null for empty / unknown ids. |
+
+### `TileMap`
+
+`skarph.core.TileMap` - A grid of tiles in several layers with per-tile flags, parallax and an object list, plus fast culled drawing, box movement and ray casts.
+
+| Member | Description |
+|---|---|
+| `static final int SOLID` |  |
+| `static final int ONEWAY` | Solid only from above: a platform you can jump through and stand on. |
+| `static final int LADDER` |  |
+| `static final int HAZARD` |  |
+| `static final int WATER` |  |
+| `static final int USER1` |  |
+| `static final int USER2` |  |
+| `static final int USER3` |  |
+| `boolean outsideSolid` | Tiles outside the map count as solid (a closed room) or as empty (open sides). |
+| `TileMap(int width, int height, int maxLayers, TileSet set)` |  |
+| `static TileMap load(byte[] d, TileSet set)` | Parses an SMP1 file. |
+| `int addLayer()` | Adds a layer (up to maxLayers). |
+| `int getLayerCount()` |  |
+| `int getWidth()` |  |
+| `int getHeight()` |  |
+| `int getTileWidth()` |  |
+| `int getTileHeight()` |  |
+| `float getPixelWidth()` |  |
+| `float getPixelHeight()` |  |
+| `void setLayerVisible(int layer, boolean v)` |  |
+| `void setParallax(int layer, float px, float py)` | 1 = moves with the world, 0.5 = half speed (distant), 0 = fixed to the screen. |
+| `void setCollisionLayer(int layer)` |  |
+| `int getCollisionLayer()` |  |
+| `int getTile(int layer, int tx, int ty)` |  |
+| `void setTile(int layer, int tx, int ty, int id)` |  |
+| `void fill(int layer, int id)` |  |
+| `int getFlags(int id)` | Flags (SOLID, ONEWAY ...) of a tile id. |
+| `void setFlags(int id, int f)` |  |
+| `int flagsAt(int tx, int ty)` | Flags of the collision layer's tile at a tile position (outside the map: SOLID if outsideSolid). |
+| `int flagsAtPoint(float x, float y)` | Flags at a world position (pixels). |
+| `int getObjectCount()` |  |
+| `int getObjectId(int i)` |  |
+| `float getObjectX(int i)` |  |
+| `float getObjectY(int i)` |  |
+| `float getObjectWidth(int i)` |  |
+| `float getObjectHeight(int i)` |  |
+| `String getObjectName(int i)` |  |
+| `String getObjectType(int i)` | The "type" (class) set in Tiled, for example "enemy" or "spawn". |
+| `void draw(SpriteBatch batch, Camera2D cam)` | Draws every visible layer. |
+| `void drawLayer(SpriteBatch batch, Camera2D cam, int layer)` | Draws one layer (for example the background layers first, then your sprites, then the foreground layers). |
+| `boolean raycast(float x0, float y0, float x1, float y1, Hit2D hit)` | Walks a segment through the collision layer (grid traversal) and reports the first SOLID tile. |
+| `boolean lineOfSight(float x0, float y0, float x1, float y1, Hit2D scratch)` | True if no SOLID tile lies on the segment. |
+| `boolean overlapsFlag(float cx, float cy, float hw, float hh, int flag)` | True if any tile under the box (center, half sizes) has this flag. |
+
+### `Body2D`
+
+`skarph.core.Body2D` - A box (centre x, y; half sizes) that moves through a TileMap: gravity, walking into walls, landing on floors, one-way platforms, ceilings.
+
+| Member | Description |
+|---|---|
+| `float x` |  |
+| `float y` |  |
+| `float hw` |  |
+| `float hh` |  |
+| `float vx` |  |
+| `float vy` |  |
+| `float gravity` | Added to vy every tick (pixels per tick squared); 0 for top-down. |
+| `float maxFall` | Fastest fall in units per tick. |
+| `boolean onGround` | Set by update(): touching the floor / ceiling / a wall during the last tick. |
+| `boolean hitCeiling` |  |
+| `boolean hitLeft` |  |
+| `boolean hitRight` |  |
+| `boolean dropThrough` | Pass through one-way platforms (hold down to drop). |
+| `int tag` | Free for your game: layer, team, damage ... |
+| `Body2D(float x, float y, float halfWidth, float halfHeight)` |  |
+| `void teleport(float nx, float ny)` | Puts the body somewhere without interpolation. |
+| `float getRenderX(float alpha)` |  |
+| `float getRenderY(float alpha)` |  |
+| `void update(TileMap map)` | One tick: gravity, then movement with collisions against the map's collision layer. |
+| `boolean overlaps(Body2D o)` | Box overlap with another body. |
+| `boolean touchesFlag(TileMap map, int flag)` | True if a tile under the body has this flag (LADDER, WATER, HAZARD ...). |
+
+### `Collision2D`
+
+`skarph.core.Collision2D` - Overlap tests between 2D shapes (boxes are centre + half sizes).
+
+| Member | Description |
+|---|---|
+| `static boolean overlaps(float ax, float ay, float ahw, float ahh, float bx, float by, float bhw, float bhh)` |  |
+| `static boolean circles(float ax, float ay, float ar, float bx, float by, float br)` |  |
+| `static boolean circleBox(float cx, float cy, float r, float bx, float by, float bhw, float bhh)` |  |
+| `static boolean pointInBox(float px, float py, float bx, float by, float bhw, float bhh)` |  |
+
+### `Hit2D`
+
+`skarph.core.Hit2D` - Result of TileMap.raycast(): reusable.
+
+| Member | Description |
+|---|---|
+| `float t` | Distance along the ray as a fraction 0..1 of the segment. |
+| `float x` |  |
+| `float y` |  |
+| `float nx` | Normal of the face that was hit (one of them is 0). |
+| `float ny` |  |
+| `int tileX` | The tile that was hit. |
+| `int tileY` |  |
+
+### `ParallaxLayer`
+
+`skarph.core.ParallaxLayer` - A background picture that scrolls slower than the world and repeats sideways (sky, hills, clouds).
+
+| Member | Description |
+|---|---|
+| `ParallaxLayer(TextureRegion region, float width, float height, float factorX, float factorY, float offsetY, boolean repeatX)` |  |
+| `void draw(SpriteBatch batch, Camera2D cam)` |  |
+
 ## Scene and content
 
 ### `Scene`
@@ -584,12 +1002,14 @@ Nested: `Ui.Listener`
 | `int statTotal` | Statistics of the last render(): drawable nodes, drawn, culled. |
 | `int statDrawn` |  |
 | `int statCulled` |  |
+| `boolean interpolate` | Keep the previous pose of every node that moved, so render(r, camera, alpha) can draw it between two logic ticks (smooth motion at any display rate). |
 | `Scene(int maxNodes)` |  |
 | `Node createNode(Node parent)` | Creates a node under the given parent (null = scene root). |
 | `void destroyNode(Node n)` | Destroys a node together with all its children; the slots can be reused. |
 | `int getFreeNodes()` |  |
 | `void update()` | Recomputes world transforms of changed nodes. |
-| `void render(Renderer r, Camera camera)` | Draws all visible nodes that have a mesh. |
+| `void render(Renderer r, Camera camera)` | Draws all visible nodes that have a mesh, at their current pose. |
+| `void render(Renderer r, Camera camera, float alpha)` | Draws all visible nodes. |
 
 ### `Node`
 
@@ -609,6 +1029,18 @@ Nested: `Ui.Listener`
 | `float sx` |  |
 | `float sy` |  |
 | `float sz` |  |
+| `boolean useQuat` | True when the rotation comes from a quaternion (setRotationQuat) instead of the Euler angles. |
+| `float qx` |  |
+| `float qy` |  |
+| `float qz` |  |
+| `float qw` |  |
+| `float tintR` | Tint multiplied with the mesh color (setTint). |
+| `float tintG` |  |
+| `float tintB` |  |
+| `float alpha` | Opacity 0..1; below 1 the node is drawn in the transparent pass (setTint). |
+| `int blend` | Renderer.BLEND_OPAQUE, BLEND_ALPHA or BLEND_ADD (setBlend). |
+| `float alphaCutoff` | Pixels with less alpha than this are discarded, 0 = off (setAlphaTest). |
+| `boolean doubleSided` | true = both sides of the triangles are drawn (setDoubleSided). |
 | `final Mat4 world` |  |
 | `float worldX` |  |
 | `float worldY` |  |
@@ -618,6 +1050,12 @@ Nested: `Ui.Listener`
 | `Node getParent()` |  |
 | `Node setPosition(float x, float y, float z)` |  |
 | `Node setRotation(float rx, float ry, float rz)` | Euler angles in degrees. |
+| `Node setRotationQuat(Quat q)` | Sets the rotation from a quaternion instead of Euler angles (no gimbal lock, smooth with Quat.slerp). |
+| `Node setTint(float r, float g, float b, float a)` | Multiplies the mesh color and opacity (a below 1 makes the node transparent: drawn after the opaque ones, sorted). |
+| `Node setBlend(int mode)` | Renderer.BLEND_OPAQUE (default), BLEND_ALPHA or BLEND_ADD. |
+| `Node setAlphaTest(float cutoff)` | Discards pixels with less alpha than the cutoff (fences, leaves); 0 = off. |
+| `Node setDoubleSided(boolean both)` | true = draw both sides of the triangles. |
+| `Node snap()` | The next Scene.update() puts the node at its new place without blending from the old one (a teleport). |
 | `Node setScale(float sx, float sy, float sz)` |  |
 
 ### `Level`
@@ -626,9 +1064,12 @@ Nested: `Ui.Listener`
 
 | Member | Description |
 |---|---|
-| `static final int MAX_OBJECTS` |  |
+| `static final int MAX_OBJECTS` | Default capacities of new Level() (use the three-argument constructor for bigger or smaller levels). |
 | `static final int MAX_SPAWNS` |  |
 | `static final int MAX_BODIES` |  |
+| `final int maxObjects` | Capacity of this level: objects (nodes with models), spawn points, physics bodies. |
+| `final int maxSpawns` |  |
+| `final int maxBodies` |  |
 | `float camTargetX` | Camera hints from the file: orbit target, distance and height. |
 | `float camTargetY` |  |
 | `float camTargetZ` |  |
@@ -636,6 +1077,8 @@ Nested: `Ui.Listener`
 | `float camHeight` |  |
 | `final float[] spawns` | Spawn points, 3 floats each. |
 | `int spawnCount` |  |
+| `Level()` | A level with the default capacities. |
+| `Level(int maxObjects, int maxSpawns, int maxBodies)` | A level with its own capacities (allocates the tables once; call it in init()). |
 | `int getObjectCount()` |  |
 | `Node getNode(int i)` |  |
 | `ResourceManager.Model getModel(int i)` |  |
@@ -692,6 +1135,7 @@ Nested: `Ui.Listener`
 | `int getTexture(String name, boolean smooth, boolean repeat)` | Returns renderer texture handle (reference counted), or -1 on failure (see getLastError()). |
 | `void releaseTexture(int handle)` |  |
 | `Model getModel(String name)` | Loads a model file (and its textures) or returns the cached one. |
+| `Model getModel(String name, ModelData data)` | Registers an already parsed model (see AsyncLoader: the file was read and parsed on a background thread) and uploads it. |
 | `void releaseModel(Model m)` |  |
 
 Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus its bounding radius.
@@ -717,12 +1161,13 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 
 ### `PhysicsWorld`
 
-`skarph.core.PhysicsWorld` - Small rigid body world: spheres and axis-aligned boxes (no rotation), gravity, bouncing, simple friction, a bounded arena (walls and floor) and ray casting.
+`skarph.core.PhysicsWorld` - Small rigid body world: spheres, vertical capsules and axis-aligned boxes (no rotation), gravity, bouncing, simple friction, a bounded arena (walls, floor, optional ceiling), an optional height field terrain, layers, trigger zones, contact events, sleeping, distance joints and ray casting.
 
 | Member | Description |
 |---|---|
 | `static final int SPHERE` |  |
 | `static final int BOX` |  |
+| `static final int CAPSULE` | A capsule with a vertical axis: radius plus halfHeight, see createCapsule(). |
 | `float gravityY` | Acceleration along y in units per tick^2 (negative = down). |
 | `float damping` | Velocity multiplier per tick (air resistance). |
 | `float floorFriction` | Fraction of horizontal speed lost per tick while on the floor. |
@@ -730,23 +1175,49 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `float wallRestitution` | Bounciness of the arena walls and floor. |
 | `float maxSpeed` | Per-axis speed limit in units per tick. |
 | `int solverIterations` |  |
+| `float ceilingY` | Height of the ceiling (bodies cannot go above it); Float.MAX_VALUE = none (default). |
+| `boolean ccdEnabled` | true (default): a sphere, capsule or box that moves farther in one tick than half its smallest size is swept against the static boxes first, so it cannot jump through a thin wall. |
+| `boolean sleepingEnabled` | true = resting bodies fall asleep (no integration, no pair work against static or sleeping bodies). |
+| `int sleepTicks` | A body sleeps after this many ticks of resting (default 30 = half a second). |
+| `float sleepSpeed` | Speed (units per tick) below which a touching body counts as resting. |
+| `float hitSpeedThreshold` | Closing speed above which ContactListener.onHit() is called (units per tick). |
+| `int statSleeping` | Number of sleeping bodies in the last step(). |
 | `boolean useGrid` | false = test all pairs (slow, for comparison); true = use the grid. |
 | `int statPairTests` | Statistics of the last step(). |
 | `int statPairs` |  |
 | `int statContacts` |  |
 | `int statDropped` |  |
 | `PhysicsWorld(int maxBodies, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float cellSize)` |  |
+| `PhysicsWorld(int maxBodies, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float cellSize, int maxJoints)` | Same, with room for maxJoints distance joints. |
 | `Body createSphere(float x, float y, float z, float radius, float mass)` |  |
 | `Body createBox(float x, float y, float z, float hx, float hy, float hz, float mass)` |  |
+| `Body createCapsule(float x, float y, float z, float radius, float halfHeight, float mass)` | A capsule whose axis is vertical (it never tips over): a cylinder of height 2 * halfHeight capped with two hemispheres of the given radius, centered at (x, y, z). |
 | `void destroyBody(Body b)` |  |
 | `int getBodyCount()` |  |
 | `int getFreeBodies()` |  |
+| `void setListener(ContactListener l)` | Sets (or clears with null) the receiver of contact events. |
+| `void setTerrain(Heightfield t)` | Sets (or clears with null) a height field terrain that spheres, capsules and boxes collide with. |
+| `Heightfield getTerrain()` |  |
+| `float getMinX()` | The arena: bodies stay between these limits (the floor is minY). |
+| `float getMinY()` |  |
+| `float getMinZ()` |  |
+| `float getMaxX()` |  |
+| `float getMaxZ()` |  |
+| `int getBodyLimit()` | Upper bound of body indices in use, for loops with getBodyAt(). |
+| `Body getBodyAt(int index)` | The body with this slot index (check isActive()); the same objects createXxx() returned. |
+| `void wakeAll()` | Wakes every sleeping body. |
+| `int createDistanceJoint(Body a, Body b, float ax, float ay, float az, float length, float stiffness)` | Joins two bodies at a distance: the pair is pulled together or pushed apart toward length. |
+| `int createDistanceJoint(Body a, Body b, float length, float stiffness)` | Joint between two bodies, see the longer overload. |
+| `void destroyJoint(int id)` |  |
+| `void setJointLength(int id, float length)` | Changes the rest length of a joint (winch, rope length). |
 | `void step()` | Advances the simulation by one tick. |
-| `boolean raycast(Ray ray, float maxDist, RayHit hit)` | Finds the nearest body hit by the ray within maxDist. |
+| `boolean raycast(Ray ray, float maxDist, RayHit hit)` | Finds the nearest body hit by the ray within maxDist (all layers). |
+| `boolean raycast(Ray ray, float maxDist, int layerMask, RayHit hit)` | Finds the nearest hit within maxDist among bodies whose layer is in layerMask (triggers are ignored). |
+| `void debugDraw(DebugDraw dd)` | Draws every body as lines: static gray, dynamic green, sleeping blue, triggers yellow. |
 
 ### `Body`
 
-`skarph.core.Body` - A physics body: a sphere or an axis-aligned box (boxes never rotate).
+`skarph.core.Body` - A physics body: a sphere, a vertical capsule or an axis-aligned box (nothing rotates).
 
 | Member | Description |
 |---|---|
@@ -757,16 +1228,22 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `float vy` |  |
 | `float vz` |  |
 | `float radius` | Sphere radius (SPHERE bodies). |
-| `float hx` | Box half extents (BOX bodies). |
+| `float halfHeight` | Half length of the straight part of a CAPSULE body (the axis is vertical, y). |
+| `float hx` | Box half extents (BOX bodies); for capsules hy = halfHeight + radius. |
 | `float hy` |  |
 | `float hz` |  |
 | `float invMass` | 0 = static (never moves), otherwise 1 / mass. |
 | `float restitution` | Bounciness 0..1. |
 | `int tag` | Free to use for your own purposes (for example an index into your arrays). |
+| `int layer` | Collision layer bits of this body (default 1). |
+| `int mask` | Layers this body collides with (default -1 = all). |
+| `boolean trigger` | A trigger never collides physically: it only reports PhysicsWorld listener events (onBegin / onEnd with trigger = true) while another body overlaps it. |
 | `boolean onFloor` | True if the body touched the floor during the last step. |
 | `final Aabb bounds` | World-space box, refreshed every step. |
 | `int getType()` |  |
 | `boolean isActive()` |  |
+| `boolean isSleeping()` | True while the world has put this resting body to sleep (see PhysicsWorld.sleepingEnabled). |
+| `void wake()` | Wakes the body up (the world also wakes it when it is touched, moved or given a velocity). |
 | `boolean isStatic()` |  |
 | `void updateBounds()` |  |
 
@@ -779,6 +1256,9 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `static boolean sphereSphere(float ax, float ay, float az, float ar, float bx, float by, float bz, float br, Contact c)` |  |
 | `static boolean sphereAabb(float cx, float cy, float cz, float r, Aabb box, Contact c)` | Normal points from the sphere toward the box. |
 | `static boolean aabbAabb(Aabb a, Aabb b, Contact c)` | Normal points from a toward b along the axis of least penetration. |
+| `static boolean capsuleSphere(float cx, float cy, float cz, float r, float hh, float sx, float sy, float sz, float sr, Contact c)` | A vertical capsule (center cx, cy, cz, radius r, halfHeight hh) against a sphere. |
+| `static boolean capsuleCapsule(float ax, float ay, float az, float ar, float ah, float bx, float by, float bz, float br, float bh, Contact c)` | Two vertical capsules. |
+| `static boolean capsuleAabb(float cx, float cy, float cz, float r, float hh, Aabb box, Contact c)` | A vertical capsule against a box. |
 
 ### `Contact`
 
@@ -803,6 +1283,58 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `int findPairs(int[] out, int maxPairs)` | Finds all pairs of inserted objects whose boxes overlap. |
 | `int getPairTests()` | Number of box-vs-box tests done by the last findPairs() (for statistics). |
 | `int query(Aabb box, int[] out)` | Writes the ids of all inserted objects whose box overlaps the given box into out. |
+
+### `CharacterController`
+
+`skarph.core.CharacterController` - Moves a player or an enemy through a PhysicsWorld: walks, slides along walls, climbs low steps, stays on slopes up to a limit, jumps, falls and follows a Heightfield.
+
+| Member | Description |
+|---|---|
+| `float stepHeight` | Highest ledge that is climbed without jumping (default 0.3). |
+| `float slopeLimitDeg` | Steepest ground, in degrees from the horizontal, that counts as standing (terrain slopes only; default 50). |
+| `CharacterController(PhysicsWorld world, Body capsule)` |  |
+| `Body getBody()` |  |
+| `void setMove(float dx, float dz)` | The horizontal displacement wanted in the next update(), in units per tick. |
+| `boolean jump(float speed)` | Starts a jump with this upward speed (units per tick) if the character stands on something. |
+| `boolean isGrounded()` |  |
+| `float getGroundNormalY()` | y component of the normal of the ground under the feet (1 = flat). |
+| `float getVelocityY()` |  |
+| `void setVelocityY(float v)` |  |
+| `void teleport(float x, float y, float z)` | Puts the character somewhere else and stops its fall. |
+| `void update()` | One tick of movement: gravity, jump, walking, steps, slopes. |
+
+### `ContactListener`
+
+`skarph.core.ContactListener` - Receives contact events of a PhysicsWorld (see PhysicsWorld.setListener).
+
+| Member | Description |
+|---|---|
+| `void onBegin(Body a, Body b, boolean trigger)` | Two bodies started to touch (or a body entered a trigger: trigger is true then). |
+| `void onEnd(Body a, Body b, boolean trigger)` | Two bodies stopped touching (or left a trigger). |
+| `void onHit(Body a, Body b, float nx, float ny, float nz, float impactSpeed)` | A collision with closing speed above PhysicsWorld.hitSpeedThreshold: play a sound, spawn sparks. |
+
+### `Heightfield`
+
+`skarph.core.Heightfield` - A terrain made of a regular grid of heights (y up), for PhysicsWorld.setTerrain() and CharacterController.
+
+| Member | Description |
+|---|---|
+| `Heightfield(int nx, int nz, float cellSize, float originX, float originZ)` |  |
+| `int getSamplesX()` |  |
+| `int getSamplesZ()` |  |
+| `float getCellSize()` |  |
+| `void setHeight(int ix, int iz, float height)` | Height of one sample (row = z index, column = x index). |
+| `float getSample(int ix, int iz)` |  |
+| `void setFromBytes(byte[] data, int offset, float scale, float base)` | Fills the field from unsigned bytes (row after row, x fastest): height = value * scale + offset. |
+| `void setFromShorts(byte[] data, int offset, float scale, float base)` | Fills the field from 16 bit unsigned little endian values (2 bytes per sample). |
+| `float getMinX()` |  |
+| `float getMaxX()` |  |
+| `float getMinZ()` |  |
+| `float getMaxZ()` |  |
+| `boolean contains(float x, float z)` | True if (x, z) lies over the field. |
+| `float getHeight(float x, float z)` | Height at (x, z); outside the field the nearest edge height. |
+| `void getNormal(float x, float z, Vec3 out)` | Unit surface normal at (x, z) written into out. |
+| `float raycast(Ray ray, float maxDist)` | Distance along the ray to the surface (from above), or -1. |
 
 ## Effects and cutscenes
 
@@ -956,9 +1488,48 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `void stopMusic()` |  |
 | `void setMusicVolume(float volume)` |  |
 | `boolean isMusicPlaying()` |  |
+| `return playSound(sound, volume, pitch, loop)` |  |
+| `return playSound(sound, volume, pitch, loop)` |  |
+| `return playMusic(assetPath, loop)` |  |
+| `stopMusic()` |  |
 | `void pauseAll()` | Called by the engine when the app is paused. |
 | `void resumeAll()` | Called by the engine when the app is resumed. |
 | `void release()` | Frees every native resource (call when the program ends). |
+
+### `AudioMixer`
+
+`skarph.core.AudioMixer` - Adds buses, per stream volume / pitch, positional 3D sound, music fades and "is it still playing" on top of any platform Audio.
+
+| Member | Description |
+|---|---|
+| `static final int VOICES` | Simultaneous streams the mixer tracks. |
+| `AudioMixer(Audio backend)` |  |
+| `Audio getBackend()` | The wrapped platform audio. |
+| `int loadSound(String assetPath)` |  |
+| `void unloadSound(int sound)` |  |
+| `int playSound(int sound, float volume, float pitch, boolean loop)` |  |
+| `int playSound(int sound, float volume, float pitch, boolean loop, int b)` |  |
+| `int playSound3D(int sound, float volume, float pitch, boolean loop, float x, float y, float z, float refDist, float maxDist)` |  |
+| `void stopStream(int stream)` |  |
+| `void setStreamVolume(int stream, float volume)` |  |
+| `void setStreamPitch(int stream, float pitch)` |  |
+| `boolean isStreamPlaying(int stream)` |  |
+| `void setSoundDuration(int sound, float seconds)` |  |
+| `void setBusVolume(int b, float volume)` |  |
+| `float getBusVolume(int b)` |  |
+| `void setListener(float x, float y, float z, float yawDegrees)` |  |
+| `void setStreamPosition(int stream, float x, float y, float z)` |  |
+| `boolean playMusic(String assetPath, boolean loop)` |  |
+| `void stopMusic()` |  |
+| `void setMusicVolume(float volume)` |  |
+| `boolean isMusicPlaying()` |  |
+| `boolean crossfadeMusic(String assetPath, boolean loop, int ticks)` |  |
+| `void fadeMusicOut(int ticks)` |  |
+| `void fadeMusicIn(int ticks)` |  |
+| `void update()` |  |
+| `void pauseAll()` |  |
+| `void resumeAll()` |  |
+| `void release()` |  |
 
 ### `NullAudio`
 
@@ -1118,8 +1689,11 @@ Nested: `EngineView.BackendListener` - Called on the UI thread when the OpenGL E
 
 | Member | Description |
 |---|---|
+| `static final int DEFAULT_MAX_MESHES` | Default table sizes (the constructor with two more arguments sets others). |
+| `static final int DEFAULT_MAX_TEXTURES` |  |
 | `void setVboEnabled(boolean enabled)` | Disable VBOs (call before the first frame) if a device misbehaves. |
 | `GLES1Renderer(Engine engine, AssetManager assets)` |  |
+| `GLES1Renderer(Engine engine, AssetManager assets, int maxMeshes, int maxTextures)` | Same, with the size of the mesh and texture tables (handles are 0 .. |
 | `void onSurfaceCreated(GL10 gl, EGLConfig config)` |  |
 | `void onSurfaceChanged(GL10 gl, int w, int h)` |  |
 | `void onDrawFrame(GL10 gl)` |  |
@@ -1147,6 +1721,17 @@ Nested: `EngineView.BackendListener` - Called on the UI thread when the OpenGL E
 | `void setCamera(Mat4 projection, Mat4 view)` |  |
 | `void drawSky(int mesh)` |  |
 | `void drawMesh(int mesh, Mat4 model)` |  |
+| `void setBlendMode(int mode)` |  |
+| `void setAlphaTest(float cutoff)` |  |
+| `void setCulling(boolean backFaceCulling)` |  |
+| `void setTint(float r, float g, float b, float a)` |  |
+| `void setViewport(int x, int y, int w, int h)` |  |
+| `void resetViewport()` |  |
+| `void setScissor(boolean enabled, int x, int y, int w, int h)` |  |
+| `void clearDepth()` |  |
+| `void drawLines(float[] data, int vertexCount)` |  |
+| `int createDynamicMesh(int maxVertices, int maxIndices, boolean withNormals, boolean withUv0)` |  |
+| `void updateMesh(int mesh, float[] pos, float[] nor, float[] col, float[] uv, short[] idx, int vertexCount, int indexCount)` |  |
 | `void drawQuads(int texture, float[] vertices, int quadCount)` |  |
 | `void drawBillboards(int texture, float[] data, int count, boolean additive)` |  |
 
@@ -1156,7 +1741,10 @@ Nested: `EngineView.BackendListener` - Called on the UI thread when the OpenGL E
 
 | Member | Description |
 |---|---|
+| `static final int DEFAULT_MAX_MESHES` | Default table sizes (the constructor with two more arguments sets others). |
+| `static final int DEFAULT_MAX_TEXTURES` |  |
 | `GLES2Renderer(Engine engine, Gl2 gl, GlImageLoader images, GlLog log, FailureListener listener)` |  |
+| `GLES2Renderer(Engine engine, Gl2 gl, GlImageLoader images, GlLog log, FailureListener listener, int maxMeshes, int maxTextures)` | Same, with the size of the mesh and texture tables (handles are 0 .. |
 | `void onSurfaceCreated()` | The GL context was created (or recreated): set the state and rebuild every GL object. |
 | `void onSurfaceChanged(int w, int h)` |  |
 | `void onDrawFrame()` |  |
@@ -1180,6 +1768,17 @@ Nested: `EngineView.BackendListener` - Called on the UI thread when the OpenGL E
 | `void deleteMesh(int mesh)` |  |
 | `void setMeshTextures(int mesh, int diffuseTexture, int lightmapTexture)` |  |
 | `void drawMesh(int mesh, Mat4 model)` |  |
+| `void setBlendMode(int mode)` |  |
+| `void setAlphaTest(float cutoff)` |  |
+| `void setCulling(boolean backFaceCulling)` |  |
+| `void setTint(float r, float g, float b, float a)` |  |
+| `void setViewport(int x, int y, int w, int h)` |  |
+| `void resetViewport()` |  |
+| `void setScissor(boolean enabled, int x, int y, int w, int h)` |  |
+| `void clearDepth()` |  |
+| `void drawLines(float[] data, int vertexCount)` |  |
+| `int createDynamicMesh(int maxVertices, int maxIndices, boolean withNormals, boolean withUv0)` |  |
+| `void updateMesh(int mesh, float[] positions, float[] normals, float[] colors, float[] uv0, short[] indices, int vertexCount, int indexCount)` |  |
 | `static void normalMatrix(Mat4 model, float[] out)` | Normal matrix = inverse transpose of the upper left 3x3 of the model matrix (column-major, written to out[0..8]). |
 | `void drawQuads(int texture, float[] vertices, int quadCount)` |  |
 | `void drawBillboards(int texture, float[] data, int count, boolean additive)` |  |
@@ -1206,7 +1805,7 @@ Nested: `GLES2Renderer.FailureListener` - Told when the backend cannot work on t
 
 ### `AndroidAudio`
 
-`skarph.android.AndroidAudio` - skarph.core.Audio for Android: SoundPool for short effects (loaded asynchronously by the system, so playSound() returns -1 until a sound is ready) and MediaPlayer for streamed music.
+`skarph.android.AndroidAudio` - skarph.core.Audio backend for Android (EngineView wraps it in AudioMixer): SoundPool for short effects (loaded asynchronously by the system, so playSound() returns -1 until a sound is ready) and MediaPlayer for streamed music.
 
 | Member | Description |
 |---|---|
@@ -1215,6 +1814,8 @@ Nested: `GLES2Renderer.FailureListener` - Told when the backend cannot work on t
 | `synchronized void unloadSound(int sound)` |  |
 | `synchronized int playSound(int sound, float volume, float pitch, boolean loop)` |  |
 | `synchronized void stopStream(int stream)` |  |
+| `synchronized void setStreamGain(int stream, float left, float right)` |  |
+| `synchronized void setStreamRate(int stream, float pitch)` |  |
 | `synchronized boolean playMusic(String assetPath, boolean loop)` |  |
 | `synchronized void stopMusic()` |  |
 | `synchronized void setMusicVolume(float volume)` |  |
@@ -1263,4 +1864,4 @@ Nested: `GLES2Renderer.FailureListener` - Told when the backend cannot work on t
 
 ## Internal and platform classes
 
-Not meant to be called by games: `AndroidGl2`, `BitmapOptionsCompat`, `GLES2Shaders`, `GLES2SurfaceRenderer`, `Gl2`, `GlImage`, `GlImageLoader`, `GlLog`, `Gles2Setup`, `MultiTouchHandler`.
+Not meant to be called by games: `AndroidGl2`, `BitmapOptionsCompat`, `GLES2Shaders`, `GLES2SurfaceRenderer`, `Gl2`, `GlImage`, `GlImageLoader`, `GlLog`, `Gles2Setup`, `MultiTouchHandler`, `PairSet`.

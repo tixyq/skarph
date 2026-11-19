@@ -9,6 +9,8 @@ package skarph.android;
  *   TEX0 - diffuse texture (uv0)
  *   LM   - baked lightmap texture (uv1), multiplied with the diffuse color
  *   FOG  - linear distance fog, applied last (uFog = scale, offset; uFogColor)
+ *   TINT - the vertex color is multiplied by uTint (fading, flashing)
+ *   ATEST - pixels with alpha below uCutoff are discarded (fences, leaves)
  * </pre>
  * Result: vertex color, lit (clamped to 1) when LIT, times the diffuse texture, times the lightmap,
  * mixed with the fog color when FOG.
@@ -24,8 +26,12 @@ public final class GLES2Shaders {
     public static final int TEX0 = 2;
     public static final int LM = 4;
     public static final int FOG = 8;
-    /** Number of mesh program variants (all combinations of the four features). */
-    public static final int VARIANTS = 16;
+    /** Multiply the vertex color by the uniform uTint (setTint). */
+    public static final int TINT = 16;
+    /** Discard pixels whose alpha is below the uniform uCutoff (setAlphaTest). */
+    public static final int ATEST = 32;
+    /** Number of mesh program variants (all combinations of the six features); only the ones used are ever compiled. */
+    public static final int VARIANTS = 64;
 
     public static final int ATTR_POS = 0;
     public static final int ATTR_NORMAL = 1;
@@ -98,8 +104,17 @@ public final class GLES2Shaders {
             + "uniform vec3 uFogColor;\n"
             + "varying float vFog;\n"
             + "#endif\n"
+            + "#ifdef TINT\n"
+            + "uniform vec4 uTint;\n"
+            + "#endif\n"
+            + "#ifdef ATEST\n"
+            + "uniform float uCutoff;\n"
+            + "#endif\n"
             + "void main() {\n"
             + "    vec4 c = vColor;\n"
+            + "#ifdef TINT\n"
+            + "    c *= uTint;\n"
+            + "#endif\n"
             + "#ifdef LIT\n"
             + "    float d = max(dot(normalize(vNormal), uLightDir), 0.0);\n"
             + "    c.rgb = min(c.rgb * (uAmbient + uLightColor * d), vec3(1.0));\n"
@@ -109,6 +124,9 @@ public final class GLES2Shaders {
             + "#endif\n"
             + "#ifdef LM\n"
             + "    c.rgb *= texture2D(uTex1, vUv1).rgb;\n"
+            + "#endif\n"
+            + "#ifdef ATEST\n"
+            + "    if (c.a < uCutoff) discard;\n"
             + "#endif\n"
             + "#ifdef FOG\n"
             + "    c.rgb = mix(uFogColor, c.rgb, clamp(vFog, 0.0, 1.0));\n"
@@ -159,10 +177,16 @@ public final class GLES2Shaders {
         if ((features & FOG) != 0) {
             sb.append("#define FOG\n");
         }
+        if ((features & TINT) != 0) {
+            sb.append("#define TINT\n");
+        }
+        if ((features & ATEST) != 0) {
+            sb.append("#define ATEST\n");
+        }
         return sb.toString();
     }
 
-    /** Vertex shader source of a mesh program variant (features = OR of LIT, TEX0, LM, FOG). */
+    /** Vertex shader source of a mesh program variant (features = OR of LIT, TEX0, LM, FOG, TINT, ATEST). */
     public static String meshVertex(int features) {
         return defines(features) + MESH_VERTEX;
     }
