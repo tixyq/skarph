@@ -4,7 +4,7 @@
 
 New in 1.2: render interpolation, quaternions / tweens / easing, transparency and debug lines, capsule physics with a
 character controller, events, triggers and terrain, audio buses and 3D sound, Unicode (Cyrillic) fonts, text fields,
-on-screen keyboard, lists, tile maps with a Tiled converter. Details: docs/MANUAL.md section 15.
+on-screen keyboard, lists, tile maps with a Tiled converter.
 
 A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation in the game loop, OpenGL ES 1.x
 and 2.0 backends with automatic choice. The core has no platform dependencies; it runs on Android and on Windows,
