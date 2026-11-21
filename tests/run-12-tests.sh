@@ -1,6 +1,6 @@
 #!/bin/sh
 # Copyright (C) 2026 tixyq. MIT License, see LICENSE.
-# Compiles the engine and runs every test that needs no demo assets (the 1.2 tests and the older headless ones).
+# Compiles the engine and runs every headless test except the network ones.
 # Usage: tests/run-12-tests.sh [OUT_DIR]     (default /tmp/skarph-out; run it from anywhere)
 set -e
 cd "$(dirname "$0")/.."
@@ -20,4 +20,4 @@ for T in CoreTest PhysicsTest PlatformTest Gles2Test Core12Test Physics2Test Aud
     java -cp "$CP" $T 2>&1 | grep -v "^PASS\|^Picked" | tee "$OUT/$T.log"
     grep -q "PASSED" "$OUT/$T.log" || { echo "FAILED: $T"; exit 1; }
 done
-echo "ALL 1.2 TESTS PASSED"
+echo "ALL HEADLESS TESTS PASSED"

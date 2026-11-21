@@ -2,7 +2,7 @@
 import skarph.android.*;
 import skarph.core.*;
 
-/** The 1.2 renderer features on the fake GL of Gles2Test: blending, alpha test, tint, lines, scissor, viewport, dynamic meshes. */
+/** The renderer features on the fake GL of Gles2Test: blending, alpha test, tint, lines, scissor, viewport, dynamic meshes. */
 public class Gles2FeatureTest {
     static int failed;
 
@@ -165,7 +165,7 @@ public class Gles2FeatureTest {
         long d = allocated() - a0;
         check(d < 2048, "zero allocation: 5000 frames of blend / tint / lines / dynamic mesh / scissor (" + d + " bytes)");
 
-        System.out.println(failed == 0 ? "ALL GLES2 1.2 TESTS PASSED" : failed + " TESTS FAILED");
+        System.out.println(failed == 0 ? "ALL GLES2 FEATURE TESTS PASSED" : failed + " TESTS FAILED");
         if (failed != 0) System.exit(1);
     }
 }

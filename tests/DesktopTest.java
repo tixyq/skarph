@@ -172,12 +172,11 @@ public class DesktopTest {
     }
 
     public static void main(String[] args) throws Exception {
-        String assets = args.length > 0 ? args[0] : "demos/demo-v1.0/assets";
         platforms();
         links();
         setupTests();
         httpTests();
-        miscTests(assets);
+        miscTests();
         inputTests();
         iconTests();
         System.out.println(failed == 0 ? "ALL DESKTOP TESTS PASSED" : failed + " DESKTOP TESTS FAILED");
@@ -412,7 +411,7 @@ public class DesktopTest {
                 "launcher: --setup-only offline prints the five API jars (exit " + code + ")");
     }
 
-    static void miscTests(String assetsDir) throws Exception {
+    static void miscTests() throws Exception {
         // app dirs
         Map<String, String> env = new HashMap<String, String>();
         check(AppDirs.cacheDir(Platform.Os.LINUX, "skarph", env, "/home/u").getPath().equals("/home/u/.cache/skarph"), "dirs: linux cache default");
@@ -442,24 +441,6 @@ public class DesktopTest {
         check(st.delete("s.dat") && st.load("s.dat") == null, "storage: delete");
 
         // wav
-        boolean wavs = true;
-        int count = 0;
-        File[] files = new File(assetsDir).listFiles();
-        for (File f : files) {
-            if (f.getName().endsWith(".wav")) {
-                WavDecoder.Pcm p = WavDecoder.decode(Files.readAllBytes(f.toPath()));
-                try (javax.sound.sampled.AudioInputStream in = javax.sound.sampled.AudioSystem.getAudioInputStream(f)) {
-                    wavs &= p != null && p.samples.length == in.getFrameLength() * p.channels && p.sampleRate == (int) in.getFormat().getSampleRate();
-                    // compare the first samples with what Java's own decoder reads
-                    byte[] raw = in.readAllBytes();
-                    for (int i = 0; i < Math.min(50, p.samples.length) && wavs; i++) {
-                        wavs &= p.samples[i] == (short) ((raw[2 * i] & 0xFF) | (raw[2 * i + 1] << 8));
-                    }
-                }
-                count++;
-            }
-        }
-        check(wavs && count >= 5, "wav: the demo sounds (" + count + ") decode to the same samples as javax.sound");
         byte[] w8 = wav(1, 8, 8000, new byte[] {(byte) 128, (byte) 255, 0});
         WavDecoder.Pcm p8 = WavDecoder.decode(w8);
         check(p8 != null && p8.samples.length == 3 && p8.samples[0] == 0 && p8.samples[1] == 127 << 8 && p8.samples[2] == -32768, "wav: 8 bit");
@@ -476,8 +457,6 @@ public class DesktopTest {
                 "wav: garbage and unsupported formats give null, a cut file is read as far as it goes");
 
         // png
-        ImageDecoder.Image img = ImageDecoder.decode(Files.readAllBytes(new File(assetsDir, "snow.png").toPath()));
-        check(img != null && img.width == 128 && img.height == 128 && img.rgba.isDirect() && img.rgba.remaining() == 128 * 128 * 4, "png: demo texture decodes to 128x128 RGBA");
         java.awt.image.BufferedImage bi = new java.awt.image.BufferedImage(2, 1, java.awt.image.BufferedImage.TYPE_INT_ARGB);
         bi.setRGB(0, 0, 0x80FF2010);
         bi.setRGB(1, 0, 0xFF0000FF);

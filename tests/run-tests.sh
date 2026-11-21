@@ -16,12 +16,12 @@ ARGUMENTS
             nothing else in OUT_DIR is touched.
 
 OPTIONS
-  Without options only a JDK (8 or newer) is needed: the engine, the headless tests, the demo screens in plain Java and
+  Without options only a JDK (8 or newer) is needed: the engine, the headless tests and
   the desktop layer are plain Java. Each option adds checks; every option also has an environment variable.
 
-  --android-jar FILE   [ANDROID_JAR]   any recent android.jar: compiles the Android layer and all demos, runs
-                                       Gles1FogTest, the GLSL checks, the GL replay and DemoSmokeTest
-  --api3 FILE          [ANDROID_API3]  a GENUINE API 3 android.jar: the core, the Android layer and all demos must
+  --android-jar FILE   [ANDROID_JAR]   any recent android.jar: compiles the Android layer, runs
+                                       Gles1FogTest and the GLSL checks
+  --api3 FILE          [ANDROID_API3]  a GENUINE API 3 android.jar: the core and the Android layer must
                                        compile against it with zero errors
   --api5 FILE          [ANDROID_API5]  a genuine API 5 jar: MultiTouchHandler (the only class with multi-touch calls)
   --api8 FILE          [ANDROID_API8]  a genuine API 8 jar (optional): proves that AndroidGl2 really needs API 9
@@ -40,10 +40,9 @@ EXAMPLES
   tests/run-tests.sh /tmp/skarph --android-jar a.jar --api3 android-3.jar --api5 android-5.jar --api9 android-9.jar
 
 WHAT RUNS (in this order; the sections that need a jar are skipped without it)
-  core compiles; CoreTest, HttpTest (the network against real local servers), PhysicsTest, ContentTest, TownMapTest, PortMapTest; TownDemoTest, PortDemoTest (the real
-  assets and screens with scripted taps); docs/API.md is up to date; camera track tool + CameraTrackTest; PlatformTest;
+  core compiles; CoreTest, HttpTest (the network against real local servers), NetTest (UDP against real local sockets), ServerTest (the server, the server browser and the server loop against real clients), PhysicsTest; docs/API.md is up to date; camera track tool + CameraTrackTest; PlatformTest;
   Gles2Test; DesktopTest, the desktop window/OpenGL/sound classes against stubs; with a jar: Gles1FogTest, the GLSL
-  checks (tests/glsl/run.sh), the GL replay (tests/glsl/replay.sh), DemoSmokeTest. The output ends with
+  checks (tests/glsl/run.sh). The output ends with
   "ALL ... PASSED" lines; the script stops with an error at the first failure.
   More: docs/MANUAL.md, section 12.
 HELP
@@ -82,12 +81,11 @@ done
 
 set -e
 cd "$ROOT"
-for d in core android tests api mt gl2 town port desktop hosts hosts-real shaders replay; do rm -rf "$OUT/$d"; done
+for d in core android tests api mt gl2 desktop hosts hosts-real shaders; do rm -rf "$OUT/$d"; done
 mkdir -p "$OUT/core" "$OUT/android" "$OUT/tests" "$OUT/api" "$OUT/mt" "$OUT/gl2"
 
 CORE=$(find skarph-core/src -name '*.java')
 ANDROID=$(find skarph-android/src -name '*.java')
-DEMOS=$(find demos/demo-v[01].*/src -name '*.java')
 
 echo "== skarph-core (pure Java)"
 javac -nowarn -source 8 -target 8 -d $OUT/core $CORE
@@ -111,10 +109,10 @@ if [ -n "$ANDROID_API3" ]; then
   echo "== API level check: skarph-core against API 3 (must be clean)"
   javac -nowarn -source 8 -target 8 -bootclasspath "$ANDROID_API3" -d $OUT/api $CORE
 
-  echo "== API level check: skarph-android + demos against API 3 (must be clean)"
+  echo "== API level check: skarph-android against API 3 (must be clean)"
   javac -nowarn -source 8 -target 8 -bootclasspath "$ANDROID_API3" -classpath $OUT/core:$OUT/mt:$OUT/gl2 \
-      -d $OUT/api $(echo "$ANDROID" | grep -v "MultiTouchHandler\|AndroidGl2\|Gles2Setup") $DEMOS
-  echo "   ok: skarph-android and all demos compile against API 3 (Android 1.5)"
+      -d $OUT/api $(echo "$ANDROID" | grep -v "MultiTouchHandler\|AndroidGl2\|Gles2Setup")
+  echo "   ok: skarph-android compiles against API 3 (Android 1.5)"
 fi
 
 if [ -n "$ANDROID_API8" ]; then
@@ -136,8 +134,8 @@ if [ -n "$ANDROID_API5" ]; then
 fi
 
 if [ -n "$ANDROID_JAR" ]; then
-  echo "== skarph-android + demos (runnable classes)"
-  javac -nowarn -source 8 -target 8 -classpath "$ANDROID_JAR:$OUT/core" -d $OUT/android $ANDROID $DEMOS
+  echo "== skarph-android (runnable classes)"
+  javac -nowarn -source 8 -target 8 -classpath "$ANDROID_JAR:$OUT/core" -d $OUT/android $ANDROID
 fi
 
 if [ -z "$ANDROID_JAR" ]; then
@@ -148,22 +146,15 @@ if [ -z "$ANDROID_JAR" ]; then
 fi
 
 echo "== tests"
-javac -nowarn -cp $OUT/core:$OUT/android -d $OUT/tests tests/CoreTest.java tests/PhysicsTest.java tests/ContentTest.java tests/PlatformTest.java tests/Gles2Test.java tests/CameraTrackTest.java tests/TownMapTest.java tests/PortMapTest.java tests/HttpTest.java
+javac -nowarn -cp $OUT/core:$OUT/android -d $OUT/tests tests/CoreTest.java tests/PhysicsTest.java tests/PlatformTest.java tests/Gles2Test.java tests/CameraTrackTest.java tests/HttpTest.java tests/NetTest.java tests/skarph/core/NetTestHook.java tests/ServerTest.java examples/RoomServer.java
 java -cp $OUT/core:$OUT/tests CoreTest
 echo "== network (UrlHttp against real HTTP and HTTPS servers on the loopback interface)"
 java -cp $OUT/core:$OUT/tests HttpTest
+echo "== network: UDP (UdpSocket and NetChannel against real sockets on the loopback interface)"
+java -cp $OUT/core:$OUT/tests NetTest
+echo "== network: the server (NetServer, ServerBrowser, ServerLoop and examples/RoomServer against real clients on the loopback interface)"
+java -cp $OUT/core:$OUT/tests ServerTest
 java -cp $OUT/core:$OUT/tests PhysicsTest
-java -cp $OUT/core:$OUT/tests ContentTest demos/demo-v0.5/assets
-java -cp $OUT/core:$OUT/tests TownMapTest demos/demo-v0.8/assets
-java -cp $OUT/core:$OUT/tests PortMapTest demos/demo-v1.0/assets
-echo "== town demo screen (plain Java, runs without android.jar)"
-mkdir -p $OUT/town
-javac -nowarn -cp $OUT/core:$OUT/tests -d $OUT/town demos/demo-v0.8/src/skarph/demo/v08/BackendSwitcher.java demos/demo-v0.8/src/skarph/demo/v08/StressDemoScreen.java demos/demo-v0.8/src/skarph/demo/v08/CutsceneFx.java demos/demo-v0.8/src/skarph/demo/v08/PhysicsShow.java tests/TownDemoTest.java
-java -cp $OUT/core:$OUT/tests:$OUT/town TownDemoTest demos/demo-v0.8/assets
-echo "== port demo screen (plain Java, runs without android.jar)"
-mkdir -p $OUT/port
-javac -nowarn -cp $OUT/core:$OUT/tests -d $OUT/port demos/demo-v1.0/src/skarph/demo/v10/BackendSwitcher.java demos/demo-v1.0/src/skarph/demo/v10/PortDemoScreen.java demos/demo-v1.0/src/skarph/demo/v10/PortFx.java demos/demo-v1.0/src/skarph/demo/v10/PortSound.java demos/demo-v1.0/src/skarph/demo/v10/PhysicsShow.java tests/PortDemoTest.java
-java -cp $OUT/core:$OUT/tests:$OUT/port PortDemoTest demos/demo-v1.0/assets
 if command -v python3 > /dev/null; then
   python3 tools/gen_api_reference.py --check
   python3 tools/make_camera_track.py tools/sources/sample_track.txt $OUT/sample.cam
@@ -185,27 +176,15 @@ if [ -n "$ANDROID_JAR" ]; then
   sh tests/glsl/run.sh "$OUT"
 fi
 
-if [ -n "$ANDROID_JAR" ]; then
-  echo "== GL replay: the real backends demo through GLES2Renderer on Mesa (skipped when the tools are missing)"
-  sh tests/glsl/replay.sh "$OUT"
-fi
-
-if [ -n "$ANDROID_JAR" ]; then
-  echo "== demo smoke test (all demo screens, headless, 4000 frames each)"
-  javac -nowarn -cp $OUT/core:$OUT/android:$OUT/tests -d $OUT/tests tests/DemoSmokeTest.java
-  java -cp $OUT/core:$OUT/android:$OUT/tests DemoSmokeTest
-fi
-
 echo "== desktop layer (plain Java: platforms, links, download and checksums, cache, assets, storage, wav, png, shaders)"
 mkdir -p $OUT/desktop $OUT/hosts
 javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android -d $OUT/desktop $(find skarph-desktop/src/skarph/desktop -maxdepth 1 -name '*.java')
 javac -nowarn -cp $OUT/core:$OUT/android:$OUT/desktop -d $OUT/tests tests/DesktopTest.java
-java -cp $OUT/core:$OUT/android:$OUT/desktop:$OUT/tests DesktopTest demos/demo-v1.0/assets
+java -cp $OUT/core:$OUT/android:$OUT/desktop:$OUT/tests DesktopTest
 
-echo "== desktop window / OpenGL / sound classes against signature stubs, desktop demo"
+echo "== desktop window / OpenGL / sound classes against signature stubs"
 javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android:$OUT/desktop -d $OUT/hosts \
     $(find tests/lwjgl-stubs -name '*.java') skarph-desktop/src/skarph/desktop/host/*.java
-javac -nowarn -source 8 -target 8 -cp $OUT/core:$OUT/android:$OUT/desktop:$OUT/port -d $OUT/hosts demos/demo-v1.0/desktop/DesktopDemo.java
 if [ -n "$LWJGL_CP" ]; then
   echo "== desktop classes against the real LWJGL jars (--lwjgl / LWJGL_CP)"
   mkdir -p $OUT/hosts-real

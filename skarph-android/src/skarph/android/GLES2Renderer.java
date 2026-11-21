@@ -123,7 +123,7 @@ public final class GLES2Renderer implements Renderer {
     private final float[] fogColor = {0f, 0f, 0f};
     private int fogStamp;                                   // bumped by setFog, uniforms are re-sent lazily
 
-    // 1.2 mesh state: blend mode, alpha test, culling, tint (see Renderer)
+    // mesh state: blend mode, alpha test, culling, tint (see Renderer)
     private int blendMode;
     private float alphaCutoff;
     private boolean culling = true;

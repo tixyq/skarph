@@ -110,10 +110,10 @@ public final class EngineView extends GLSurfaceView {
         queueEvent(resumeTask);
     }
 
-    /** Call from Activity.onDestroy(): releases the sound resources and stops the network thread. */
+    /** Call from Activity.onDestroy(): releases the sound resources and closes the network (HTTP and UDP). */
     public void destroy() {
         engine.getAudio().release();
-        engine.releaseHttp();
+        engine.releaseNet();
     }
 
     public boolean onTouchEvent(MotionEvent e) {

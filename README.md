@@ -1,10 +1,6 @@
 <p align="center"><img src="icon.png" width="128" alt="Skarph"></p>
 
-# Skarph 1.2
-
-New in 1.2: render interpolation, quaternions / tweens / easing, transparency and debug lines, capsule physics with a
-character controller, events, triggers and terrain, audio buses and 3D sound, Unicode (Cyrillic) fonts, text fields,
-on-screen keyboard, lists, tile maps with a Tiled converter.
+# Skarph 1.3
 
 A small 3D engine with 2D support, written in Java. Fixed 60 Hz logic, no allocation in the game loop, OpenGL ES 1.x
 and 2.0 backends with automatic choice. The core has no platform dependencies; it runs on Android and on Windows,
@@ -16,9 +12,9 @@ skarph-android/   platform layer for Android: view, renderers, audio, storage, a
                   build-android.sh builds a signed APK of a program
 skarph-desktop/   platform layer for Windows, Linux and macOS: window, OpenGL, audio, input (LWJGL, downloaded on first start);
                   build-desktop.sh builds a portable jar of a program
-demos/            example programs (index: demos/README.md)
 docs/             MANUAL.md (guide) and API.md (every public class and member)
-tools/            Python tools: model converters, lightmap baker, camera tracks, level preview, icons
+tools/            Python tools: model converters, lightmap baker, camera tracks, level preview
+examples/         a server program (RoomServer.java): skarph-core only, no window
 tests/            headless tests; run-tests.sh compiles the engine and runs all of them
 icon.png          the Skarph icon, 512x512, transparent; used as the icon of every platform
 ```
@@ -38,8 +34,9 @@ Both platforms are built from the same sources; nothing in the core depends on e
 
 ```
 tests/run-tests.sh build                                             tests: JDK only
-tests/run-tests.sh build --android-jar /path/android.jar             more tests (Android layer, demos, GL)
-skarph-android/build-android.sh demos/demo-v1.0 --sdk ~/Android/Sdk  a signed APK: build/apk/demo-v1.0.apk
+tests/run-13-tests.sh                                                the headless tests (also HttpTest, NetTest and ServerTest)
+tests/run-tests.sh build --android-jar /path/android.jar             more tests (Android layer, GL)
+skarph-android/build-android.sh my-game --sdk ~/Android/Sdk          a signed APK: build/apk/my-game.apk
 skarph-desktop/build-desktop.sh                                      without arguments: the help of the jar build
 ```
 

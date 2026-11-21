@@ -366,7 +366,7 @@ public final class Host {
         if (audio != null) {
             audio.release();
         }
-        engine.releaseHttp();
+        engine.releaseNet();
         if (window != 0L) {
             Callbacks.glfwFreeCallbacks(window);
             glfwDestroyWindow(window);

@@ -11,7 +11,7 @@ USAGE
   skarph-android/build-android.sh help | -help | --help | -h      this text (also without any argument)
 
 ARGUMENTS
-  APP_DIR    the folder of the program, laid out like the folders in demos/:
+  APP_DIR    the folder of the program, laid out like this:
                AndroidManifest.xml    required
                src/                   required: your Java sources
                assets/                optional: models, textures, sounds
@@ -42,8 +42,8 @@ NEEDS
   zip (or Python 3 as a fallback).
 
 EXAMPLES
-  skarph-android/build-android.sh demos/demo-v1.0 --sdk ~/Android/Sdk
-  skarph-android/build-android.sh demos/demo-v0.8 -o /tmp/town.apk --android-jar ~/android.jar --build-tools ~/bt
+  skarph-android/build-android.sh my-game --sdk ~/Android/Sdk
+  skarph-android/build-android.sh my-game -o /tmp/my-game.apk --android-jar ~/android.jar --build-tools ~/bt
   skarph-android/build-android.sh my-game --keystore my.keystore --key-alias release --ks-pass env:KS_PASS
 
 STEPS (printed while it runs)

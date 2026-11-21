@@ -93,7 +93,6 @@ public final class Ui {
     private final float[] value;
     private final int[] pressedBy;
     private final TextBuffer[] text;
-    // 1.2
     private final TextureRegion[] image;
     private final float[] wrap;
     private final int[] measuredHash;

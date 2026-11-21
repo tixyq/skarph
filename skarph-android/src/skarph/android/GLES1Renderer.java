@@ -83,7 +83,7 @@ public final class GLES1Renderer implements Renderer, GLSurfaceView.Renderer {
     private boolean vboTexChecked;
     private boolean vboBound;
 
-    // 1.2 mesh state (see Renderer): blend mode, alpha test, culling, tint
+    // mesh state (see Renderer): blend mode, alpha test, culling, tint
     private int blendMode;
     private float alphaCutoff;
     private boolean culling = true;

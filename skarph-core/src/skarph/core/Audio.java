@@ -44,7 +44,7 @@ public interface Audio {
     default void update() {
     }
 
-    // ---- 1.2: everything below has a default that does nothing, so old Audio implementations keep compiling.
+    // ---- everything below has a default that does nothing.
     // AudioMixer (wrap a platform Audio in it; the platform hosts do) implements all of it on top of any backend.
 
     /** Plays an effect on a bus (BUS_SFX, BUS_UI ...). The 4 argument playSound() uses BUS_SFX. */

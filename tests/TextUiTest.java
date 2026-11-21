@@ -3,7 +3,7 @@ import java.io.*;
 import java.nio.file.*;
 import skarph.core.*;
 
-/** Proportional fonts, wrapping, SpriteBatch scissor / nine-patch, Strings, and the 1.2 Ui widgets. */
+/** Proportional fonts, wrapping, SpriteBatch scissor / nine-patch, Strings, and the Ui widgets. */
 public class TextUiTest {
     static int failed;
 

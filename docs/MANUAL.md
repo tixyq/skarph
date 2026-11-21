@@ -20,7 +20,8 @@ platform specific is collected in [13](#13-platform-layers) (the contract and An
 12. [Build and tests](#12-build-and-tests)
 13. [Platform layers](#13-platform-layers)
 14. [Desktop: Windows, Linux, macOS](#14-desktop-windows-linux-macos)
-15. [New in 1.2](#15-new-in-12)
+15. [Extended features](#15-extended-features)
+16. [UDP and server](#16-udp-and-server)
 
 ---
 
@@ -38,6 +39,8 @@ platform specific is collected in [13](#13-platform-layers) (the contract and An
 - Collisions, ray picking, a small rigid body world.
 - Sound (effects and music), settings, saved state, pointer input (touch, multi-touch, mouse).
 - Simple HTTP and HTTPS for slow but reliable fetching and sending of small data (`Http`: GET and POST): background thread, timeouts, retries, redirects.
+- UDP for online play (`UdpSocket`, `NetChannel`): connection, sequence numbers, acknowledgements, round trip time, reliable messages, big messages; no blocking and no allocation on the game thread.
+- Server (`NetServer`, `ServerLoop`, `ServerBrowser`): many clients on one port, rooms, broadcast, kick and ban, connect filter, server lists and LAN search; a dedicated server requires no window and no engine.
 - Cutscene tools (camera tracks, timelines), a profiler, a benchmark, an automatic quality governor.
 
 ### Architecture
@@ -51,7 +54,7 @@ skarph-core (pure Java)           loop, math, scene, physics, UI, effects; no pl
 ```
 
 Dependencies point one way: the core never knows the platform, the engine never knows your game. The core, the physics,
-the UI and the demo screens therefore run in a plain JVM, which is how the tests work without a device or a window. To port the
+the UI therefore run in a plain JVM, which is how the tests work without a device or a window. To port the
 engine, implement `Renderer`, `Assets`, `Audio` and `Storage` and feed `InputQueue` (see [13](#13-platform-layers)).
 
 
@@ -70,7 +73,7 @@ A game is a set of `Screen` classes plus data files (`assets/`). Only the few li
 3. Put your data files into the app `assets/` folder.
 4. No permissions are needed, except `INTERNET` when the program uses `Http` (section [9](#network-http-and-https)).
 
-To get an APK without an IDE, lay the program out like the folders in `demos/` (`AndroidManifest.xml`, `src/`, `assets/`,
+To get an APK without an IDE, lay the program out in one folder (`AndroidManifest.xml`, `src/`, `assets/`,
 `res/`) and run `skarph-android/build-android.sh YOUR_FOLDER --sdk ~/Android/Sdk` (section [12](#12-build-and-tests)): it compiles
 the engine together with your sources and writes a signed APK.
 
@@ -992,7 +995,8 @@ the camera skips poses but the story still takes the same number of ticks.
 
 ## 9. Audio, storage and network
 
-Classes: `Audio`, `NullAudio`, `Storage`, `MemoryStorage`, `Settings`, `Http`, `HttpRequest`, `UrlHttp`. Platform implementations:
+Classes: `Audio`, `NullAudio`, `Storage`, `MemoryStorage`, `Settings`, `Http`, `HttpRequest`, `UrlHttp`, `UdpSocket`, `UdpPacket`, `NetChannel`, `NetMessage`,
+`NetServer`, `NetClient`, `NetEvent`, `ServerLoop`, `ServerHandler`, `ServerAdapter`, `ServerBrowser`. Platform implementations:
 `AndroidAudio` and `AndroidStorage` (Android), `OpenAlAudio` and `DesktopStorage` (desktop). The network needs no platform
 class: `UrlHttp` is plain `java.net` and the same on both.
 
@@ -1047,8 +1051,8 @@ settings.save(engine.getStorage(), "settings.txt");
 ### Network (HTTP and HTTPS)
 
 For small pieces of information that may take their time but must arrive: a news file, the newest version number, a
-leaderboard (GET to read it, POST to send a score), a remote configuration. It is deliberately **not** a real-time network: no UDP, no sockets, nothing for
-fast-changing game state. A request runs in a background thread; the game never waits for it and polls the result.
+leaderboard (GET to read it, POST to send a score), a remote configuration. HTTP is deliberately **not** a real-time network;
+for fast-changing game state use UDP ([Network: UDP](#network-udp-online-play), below). A request runs in a background thread; the game never waits for it and polls the result.
 
 ```java
 HttpRequest news;                                   // field of the screen
@@ -1109,8 +1113,244 @@ void tick() {                                       // polling does not allocate
 - **Tests**: `engine.setHttp(fake)` with your own `Http` (`get`, `post`, `release`); `HttpRequest.completed(url, 200, bytes, type)` and
   `HttpRequest.failed(url, code, message)` make finished requests. `tests/HttpTest.java` runs `UrlHttp` against real local
   HTTP and HTTPS servers.
-- The program calls `engine.releaseHttp()` when it ends (`EngineView.destroy()` and the desktop window do it); the thread is
-  a daemon thread and only exists after the first request.
+- The program calls `engine.releaseNet()` when it ends (`EngineView.destroy()` and the desktop window do it; it stops the
+  HTTP thread and closes the UDP sockets, `releaseHttp()` does the first part alone); the thread is a daemon thread and only exists
+  after the first request.
+
+### Network: UDP (online play)
+
+Classes: `UdpSocket` (datagrams), `UdpPacket`, `NetChannel` (connection over a socket), `NetMessage`, and for the server side
+`NetServer`, `NetClient`, `NetEvent`, `ServerLoop`, `ServerHandler`, `ServerAdapter`, `ServerBrowser`.
+
+UDP does not guarantee delivery: datagrams may be lost, duplicated or reordered. `UdpSocket` exposes datagrams as they are;
+`NetChannel` adds a connection, acknowledgements, round trip time measurement and reliable messages. Network I/O runs in
+background threads; the game-thread methods neither block nor allocate. Only `java.net` is used, so the code is identical on
+Android and on the desktop. The server side uses the same code and wire format: a dedicated server is a plain Java program,
+and a game can host a match itself.
+
+```java
+NetChannel net;
+NetMessage msg = new NetMessage();
+byte[] out = new byte[32];
+
+void start(Engine engine) {
+    net = engine.connectNet("game.example.com", 7777, 0x5A01);   // returns at once; 0x5A01 = application id
+}
+
+void tick() {                                            // once per logic tick
+    net.update();
+    switch (net.getState()) {
+        case NetChannel.CONNECTING: showStatus("connecting"); return;
+        case NetChannel.FAILED:     showStatus(net.getError()); return;
+        case NetChannel.CLOSED:     showStatus("disconnected"); return;
+    }
+    while (net.receive(msg)) {                           // msg.data[0 .. msg.length), msg.reliable
+        if (msg.reliable) handleEvent(msg.data, msg.length);
+        else              applySnapshot(msg.data, msg.length);
+    }
+    if (engine.getTotalTicks() % 3 == 0) {               // 20 datagrams per second
+        int n = writeInput(out);
+        net.send(out, 0, n);                             // unreliable
+    }
+    if (firePressed) net.sendReliable(FIRE, 0, FIRE.length);
+}
+
+void end() { net.close(); }                              // otherwise closed by engine.releaseNet()
+```
+
+#### UdpSocket
+
+- `engine.connectUdp(host, port)` or `UdpSocket.connect(host, port[, localPort, queueSize])` returns at once. A background
+  thread resolves the host, opens the socket and sends; a second thread receives. `getState()` is `CONNECTING`, `OPEN`,
+  `FAILED` or `CLOSED`; `getError()` describes a failure ("cannot find the server ...", "cannot open the UDP socket ...").
+  A bad host or port fails immediately. The methods do not throw and do not return null.
+- `send(data, off, len)` copies the datagram into a fixed queue and returns; it returns false for a bad range, a closed
+  socket or a full queue. `receive(UdpPacket p)` copies the oldest received datagram into `p` (`p.data`, `p.length`,
+  `p.address`, `p.port`, `p.receivedNanos`). Each queue holds 128 datagrams by default; a datagram that does not fit is
+  dropped and counted (`getDroppedOut()`, `getDroppedIn()`).
+- The maximum datagram size is `UdpSocket.MAX_PACKET` = 1200 bytes, which avoids IP fragmentation on a path with a 1500 byte
+  MTU. Larger datagrams are refused when sending and dropped when receiving.
+- A socket made by `connect` accepts datagrams only from the server address. A socket made by `UdpSocket.listen(bindHost,
+  port, queueSize)` is bound to a port and accepts datagrams from any sender; it sends with `sendTo(address, port, data, off,
+  len)`. `awaitOpen(millis)` blocks until the socket is open and is not for use on the game thread.
+- Data is neither encrypted nor authenticated. Received data must be validated as untrusted input.
+- `close()` returns at once; queued datagrams are sent before the socket is closed. `setSimulation(lossPercent,
+  latencyMillis)` drops and delays outgoing datagrams; it must be set on both ends to affect both directions.
+- Counters: `getPacketsSent()`, `getPacketsReceived()`, `getBytesSent()`, `getBytesReceived()`, `getSimulatedLost()`,
+  `getUnreachable()`.
+- Android requires the `INTERNET` permission. After a switch between Wi-Fi and mobile data the old socket stays silent; the
+  channel then times out and a new connection must be opened.
+
+#### NetChannel
+
+One connection to one peer. `update()` is called once per tick from the game thread only.
+
+| | |
+|---|---|
+| Connect | `engine.connectNet(host, port, appId)`. The client sends CONNECT with `appId` every 250 ms until the server answers ACCEPT, for at most 8 s (`setTimeouts(connectMs, idleMs)`). A server with a different `appId` refuses the connection: `FAILED`, "the server refused the connection". |
+| `send(data, off, len)` | Unreliable and sequenced; one message per datagram, at most `NetChannel.MAX_PAYLOAD` (1180) bytes. Late and duplicate messages are dropped, so the receiver sees newer messages in order, with gaps. Returns false when not connected. |
+| `sendReliable(data, off, len)` | Reliable and ordered; 1 to `MAX_RELIABLE` (512) bytes. Delivered exactly once and in order while the connection lives. At most `RELIABLE_QUEUE` (64) messages wait for confirmation; returns false when the queue is full or the connection is over. May be called before the connection is established. |
+| `sendReliableBig(data, off, len)` | Reliable and ordered; 1 to `MAX_BIG` (32768) bytes. The message is split into parts that occupy slots of the reliable queue and is delivered as one message. It is queued completely or not at all and must fit into the free queue space (`getReliableFree()`; 64 slots of 512 bytes). The receiver needs `new NetMessage(NetChannel.MAX_BIG)`; a smaller holder discards the message (`getBigDropped()`). The next big message is delivered after the previous one has been read. Up to `MAX_RELIABLE` bytes it is equivalent to `sendReliable`. Larger data should be transferred with HTTP. |
+| `receive(NetMessage m)` | Copies the oldest received message, reliable or not, in order of arrival (`m.data`, `m.length`, `m.reliable`). The inbox holds 64 messages. |
+| `setConnectData(data, off, len)` | Up to `MAX_CONNECT_DATA` (256) bytes sent to the server with the connection request (for example a name or a ticket). Must be called before the first `update()`. Not encrypted. |
+| Measurement | `getRttMillis()` (smoothed, -1 until known), `getPacketLoss()` (0..1, moving average), `getSilenceMillis()`, `getPacketsSent()`, `getPacketsReceived()`, `getBytesSent()`, `getBytesReceived()`, `getBadPackets()`, `getDuplicates()`, `getInboxDropped()`, `getReliablePending()`. |
+| End | `close()` sends three CLOSE datagrams (best effort) and sets `CLOSED`. No datagram for 10 s (`setTimeouts`) gives `FAILED`. A normal close by the peer gives `CLOSED`. A refusal, a full server, a kick, a ban, an unknown connection or an application reason gives `FAILED`; `getError()` returns the text and `getCloseReason()` the number: `REASON_REFUSED` 1, `REASON_FULL` 2, `REASON_KICKED` 3, `REASON_BANNED` 4, `REASON_UNKNOWN` 5 (the server does not know the connection; a new connection is required), `REASON_APP` (16) and above are application-defined. |
+
+Behavior:
+
+- Rate: 10 to 30 datagrams per second are recommended. Every datagram carries acknowledgements and the peer's processing
+  delay, so round trip time and loss measurement require traffic in both directions. An idle connection sends a keep-alive
+  every 500 ms (`setKeepAlive`) and acknowledges immediately after receiving reliable messages or 16 datagrams in a row.
+- Reliable messages are included in datagrams until the peer confirms them with a cumulative number (`relAck`), and are
+  repeated after 1.5 round-trip times (minimum 60 ms, maximum 1 s). A lost datagram delays delivery by about one round trip;
+  the order is preserved. Only the oldest unconfirmed messages that fit into a datagram are repeated.
+- Size: a datagram carries up to `1200 - 19 - 1` bytes of payload. Due reliable messages are added to the unreliable
+  message up to 1200 bytes.
+- Timing uses `System.nanoTime()`, not ticks, so a slow frame does not cause a timeout. Lag compensation, interpolation of
+  remote entities and clock synchronization are the responsibility of the game.
+- `update`, `send`, `sendReliable`, `receive` and the getters do not allocate; error texts are created only on failure.
+
+#### NetServer
+
+`NetServer.listen(port, appId, maxClients)` or `engine.listenNet(...)` (a game that hosts a match; the host connects through
+`engine.connectNet("127.0.0.1", ...)`). One UDP port, one `NetChannel` per client, same wire format. The server runs on the
+thread that calls `update()` once per tick; it does not block and does not allocate during the tick (accepting a client
+allocates its buffers, about 110 KB). It must be used from that thread only.
+
+```java
+NetServer server = NetServer.listen(7777, 0x5A01, 32);       // returns at once; the socket opens in the background
+NetEvent ev = new NetEvent();
+NetMessage msg = new NetMessage();
+
+void tick() {
+    server.update();
+    while (server.pollEvent(ev)) {
+        if (ev.type == NetEvent.JOINED) spawnPlayer(ev.client);
+        else { readLast(ev.client); removePlayer(ev.client, ev.reason); }
+    }
+    for (int i = 0; i < server.getClientSlots(); i++) {
+        NetClient c = server.getClientAt(i);                 // null for an empty slot
+        while (c != null && c.receive(msg)) handle(c, msg);
+    }
+    server.broadcast(NetServer.ALL, 0, snapshot, 0, snapshotLength);
+}
+```
+
+- Clients: a client is accepted when it presents the server's `appId` and a slot is free; otherwise it is refused with a
+  reason (`REASON_REFUSED`, `REASON_FULL`, `REASON_BANNED` or an application reason). An accepted client is a `NetClient`:
+  `getId()` (1, 2, 3 ...; not reused while the server runs), `getAddress()`, `getPort()`, `getChannel()`,
+  `getUserData()` / `setUserData()`, `getRoom()` / `setRoom()`, `getConnectData()` and the send, receive and measurement
+  methods of the channel. `getClient(id)` returns a client by id.
+- Events: `pollEvent` returns `JOINED` and `LEFT`. Reasons of `LEFT`: `LEAVE_CLOSED` (closed by the client), `LEAVE_TIMEOUT`
+  (silent for 10 s, `setIdleTimeout`, or no datagram within 3 s of being accepted), `LEAVE_KICKED`, `LEAVE_REPLACED` (the
+  same address and port connected again), `LEAVE_SHUTDOWN` (`close()`). Events are not discarded when unread. A client that
+  has left retains its unread messages until they are read.
+- Access control: `kick(client[, reason])`; `ban(address)` / `unban` / `isBanned` (by address, not by port; a ban also kicks
+  the clients with that address); `setMaxClientsPerAddress(n)` (clients behind one NAT share an address);
+  `setConnectFilter(filter)`, which receives the address and the connect data before a client is accepted and returns 0 to
+  accept or a reason from `REASON_APP` upward. A filter that throws refuses the client.
+- Rooms and multicast: `client.setRoom(n)` assigns a room (default 0). `broadcast(room, exceptId, data, off, len)`,
+  `broadcastReliable(...)` and `broadcastReliableBig(...)` send to a room or to `NetServer.ALL`, excluding the client with the
+  given id (0 = none). They return the number of clients for which the message was queued; a client whose reliable queue is
+  full does not receive a reliable broadcast (`getReliablePending()`).
+- Server lists: `setInfo(name, data, off, len)` sets the name (60 bytes) and an application data block (128 bytes) that are
+  returned to `ServerBrowser` queries. `setDiscovery(false)` disables the replies.
+- Limits: datagrams outside the protocol are counted and dropped (`getBadPackets()`). Replies to addresses that are not
+  clients are limited to 200 per second in total (`getStrayPackets()`). A dropped client that sends again receives
+  `REASON_UNKNOWN`, also after a server restart. Statistics: `getClientCount()`, `getAcceptedCount()`, `getRefusedCount()`,
+  `getSocket()` (traffic counters, `setSimulation`).
+- Security: there is no encryption or authentication. A client is identified by its address and the connection token, which is
+  visible on the network path; it separates connections and is not a login. All client input must be validated. Encryption
+  and authentication must be added by the application.
+- Network: the UDP port must be reachable (firewall, port forwarding). NAT traversal is not provided.
+- `close()` notifies the clients, delivers `LEFT` (`LEAVE_SHUTDOWN`) for each and closes the socket after the queued
+  datagrams have been sent. `engine.releaseNet()` closes the servers created with `engine.listenNet`.
+
+#### ServerLoop: server program
+
+A dedicated server requires only `skarph-core`; no window or engine. `ServerLoop` runs a fixed number of ticks per second and
+calls a `ServerHandler` (or a `ServerAdapter` with selected methods overridden): `onStart`, `onJoin`, `onLeave`,
+`onMessage`, `onTick(server, tick, dt)`, `onStop`. All calls are made one after another on the loop's thread, so game data
+needs no locking.
+
+```java
+NetServer server = NetServer.listen(7777, 0x5A01, 32);
+ServerLoop loop = new ServerLoop(server, new ServerAdapter() {
+    public void onMessage(NetServer s, NetClient c, NetMessage m) { s.broadcast(NetServer.ALL, c.getId(), m.data, 0, m.length); }
+}, 30);                                  // 30 ticks per second
+String error = loop.run();               // blocks; null after stop(), otherwise the reason the server could not run
+```
+
+`run()` uses the calling thread, `start()` creates one; `stop()` may be called from any thread. The loop closes the server,
+delivers the leaves of the clients and calls `onStop`. A tick that overruns is not compensated by additional ticks.
+`getLoad()` returns the share of a tick used by the work. An exception in a handler method is printed and the loop continues.
+`setMaxMessageSize(NetChannel.MAX_BIG)` allows big messages. No library other than `skarph-core` is required.
+`examples/RoomServer.java` is a complete server in one file (names as connect data, rooms, chat, relaying of positions,
+kicking of a client that violates the protocol).
+
+#### ServerBrowser: finding servers
+
+`ServerBrowser.create(appId)` opens a socket. `scanLan(port)` sends a broadcast to the local network (and to the local machine);
+`query(host, port)` asks one server (the name is resolved in the background). `update()` is called every tick. The list is
+read with `getCount()`, `getName(i)`, `getPlayers(i)`, `getMaxPlayers(i)`, `getPingMillis(i)`, `getAddress(i)`, `getPort(i)`,
+`getData(i, ...)` and `getAgeMillis(i)`. A server remains in the list while it replies (the query should be repeated every 1 to
+2 s) and is removed after `setExpiry` (6 s) of silence. Only servers with the same `appId` are listed (0 = all). Allocation occurs
+only when a server is first found. Broadcasts do not leave the local network and some Wi-Fi networks block them between
+devices; `query` with a known address is used there. Replies are not authenticated.
+
+#### The wire format (version 1)
+
+All numbers are big-endian. Every datagram starts with a 19-byte header:
+
+```
+offset size
+ 0     2    magic 0x534B ("SK")
+ 2     1    kind: 1 CONNECT, 2 ACCEPT, 3 DATA, 4 CLOSE
+ 3     4    token: chosen by the client in CONNECT, never 0, in every datagram of the connection
+ 7     2    seq: number of this datagram (DATA: 1, 2, ... 65535, 1, ...; 0 is skipped; CONNECT, ACCEPT, CLOSE: 0)
+ 9     2    ack: the newest seq received from the other side, 0 = none yet
+11     4    ackBits: bit i set = seq (ack - 1 - i) was received, i = 0..31
+15     2    ackDelay: milliseconds between the arrival of datagram `ack` and the sending of this one (65535 at most)
+17     2    relAck: the id of the next reliable message expected from the other side (all before it are confirmed)
+19     ...  body
+```
+
+Bodies: CONNECT: `u32 appId`, then up to 256 bytes of connect data (ignored by a server that does not use them). ACCEPT:
+empty. CLOSE: `u8 reason` (0 normal, 1 refused, 2 full, 3 kicked, 4 banned, 5 unknown connection, 16 to 255 application-defined).
+DATA: `u8 n`, then `n` reliable messages (`u16 id`, `u16 length`, bytes; ids count up from 0 and wrap at 65536; ascending
+order), then the remaining bytes are one unreliable message (empty for a pure acknowledgement or keep-alive).
+
+In `length`, bits 0 to 14 are the length (at most 512) and bit 15 means that further parts of the message follow. A big message is
+sent as consecutive reliable messages, all with bit 15 set except the last; the receiver joins them (at most 32768 bytes) and
+delivers one message. An implementation without big messages never sets the bit and need not interpret it unless the peer sends
+big messages.
+
+Two further kinds are not part of a connection. QUERY (kind 5; header with a token chosen by the asker, never 0; body
+`u32 appId`, 0 = any) asks a server about itself. INFO (kind 6; header with the token of the query; body `u32 appId`,
+`u16 players`, `u16 maxPlayers`, `u8 nameLength`, name in UTF-8, `u8 dataLength`, data) is the reply. A server answers a QUERY
+of its `appId` (or 0) without a connection.
+
+A server identifies clients by address and port. A CONNECT from a known address with the same token is a repeat (ACCEPT is
+sent again); with a different token it is a new connection and the old one is dropped. DATA from an unknown address is
+answered with CLOSE reason 5 (at most 200 such answers per second). A client that is accepted and sends no DATA within 3 s is
+dropped.
+
+Receiver rules: a datagram shorter than the header, with a different magic or a different token is dropped and counted as
+bad. Numbers are compared modulo 65536 (a is newer than b when `(a - b) & 0xFFFF` is 1..32767). A datagram whose `seq` has been
+seen is a duplicate and is dropped; its unreliable message is delivered only if it is the newest so far. A reliable message is
+delivered only when its `id` equals the next expected id; repeats and gaps are ignored and arrive again later. The sender removes
+messages below `relAck`. Round trip time = (arrival of the datagram that acknowledges `seq`) - (sending time of `seq`) -
+`ackDelay`. A server accepts a client by answering CONNECT with ACCEPT (same token) and answers a repeated CONNECT with ACCEPT
+again. A client does not answer CLOSE.
+
+#### Testing
+
+- `socket.setSimulation(30, 50)` on a channel's socket or on `server.getSocket()` applies 30 % loss and 50 ms delay to
+  outgoing datagrams (set on both ends for both directions).
+- `tests/NetTest.java` tests the client against real sockets on the loopback interface, including a hand-written peer that
+  implements the wire format byte by byte. `tests/ServerTest.java` tests the server, the browser and the loop in the same way.
+- A server and its clients can run in one thread by calling `server.update()` and the clients' `update()` in turn (see
+  `ServerTest.pump`).
 
 ---
 
@@ -1208,7 +1448,6 @@ Plain Python 3 in `tools/` (numpy and Pillow where noted). They run on a PC and 
 | `make_camera_track.py keys.txt out.cam` | baked camera track | - |
 | `preview_level.py` | a picture of a model or level without a GPU | numpy, Pillow |
 | `gen_api_reference.py --write` | writes `docs/API.md` (`--check`: is it up to date) | - |
-| `make_icons.py --write` | Android launcher icons (48, 72, 96 px) of every demo from `icon.png` (the desktop jar takes `icon.png` as it is) | Pillow |
 | `pin_lwjgl.py CLASSES_DIR` | pins the LWJGL checksums into the desktop jar (needs a network) | - |
 
 ### Model converters
@@ -1286,7 +1525,7 @@ track must be at least as long as the timeline).
 ### Preview without a GPU
 
 ```
-python3 tools/preview_level.py demos/demo-v1.0/assets/map.lvl out.png --eye -30 38 -62 --target -8 2 0 --sky 0.03 0.05 0.12
+python3 tools/preview_level.py map.lvl out.png --eye -30 38 -62 --target -8 2 0 --sky 0.03 0.05 0.12
 python3 tools/preview_level.py model.mdl out.png
 ```
 
@@ -1304,10 +1543,11 @@ shows examples. This section only gives the overview.
 | Script | Does |
 |---|---|
 | `tests/run-tests.sh OUT_DIR [options]` | compiles the engine and both platform layers, checks the Android API levels, runs all tests |
+| `tests/run-13-tests.sh [OUT_DIR]` | the headless tests: everything of `run-12-tests.sh`, `HttpTest`, `NetTest` and `ServerTest` (about 1 minute) |
 | `skarph-android/build-android.sh APP_DIR [options]` | builds a signed APK of a program |
 | `skarph-desktop/build-desktop.sh GAME_CLASS "SRC_DIRS" ASSETS_DIR OUT.jar [TITLE]` | builds a portable jar (section 14) |
-| `tests/glsl/run.sh OUT_DIR`, `tests/glsl/replay.sh OUT_DIR` | GLSL compilers and GL replay (called by `run-tests.sh`) |
-| `tools/*.py` | model converters, baker, camera tracks, icons (section 11) |
+| `tests/glsl/run.sh OUT_DIR` | GLSL compilers (called by `run-tests.sh`) |
+| `tools/*.py` | model converters, baker, camera tracks (section 11) |
 
 ### Tests
 
@@ -1316,8 +1556,8 @@ checks for the Android layer. `OUT_DIR` (for example `build`) receives the compi
 folders it makes itself.
 
 ```
-tests/run-tests.sh build                                          # JDK only: core, desktop layer, plain-Java demo screens, most tests
-tests/run-tests.sh build --android-jar /path/android.jar          # + Android layer, all demos, GL checks, smoke test
+tests/run-tests.sh build                                          # JDK only: core, desktop layer, most tests
+tests/run-tests.sh build --android-jar /path/android.jar          # + Android layer, GL checks
 tests/run-tests.sh build --android-jar a.jar --api3 android-3.jar --api5 android-5.jar --api9 android-9.jar \
     --lwjgl /path/lwjgl.jar:/path/lwjgl-glfw.jar:...
 ```
@@ -1325,8 +1565,8 @@ tests/run-tests.sh build --android-jar a.jar --api3 android-3.jar --api5 android
 | Option (environment variable) | Used for |
 |---|---|
 | `--lwjgl CP` (`LWJGL_CP`) | the LWJGL 3.3.6 jars (lwjgl, glfw, opengl, openal, stb) separated by `:`: the desktop window, OpenGL and sound classes compile against the real library; without it they are checked against signature stubs in `tests/lwjgl-stubs` |
-| `--android-jar FILE` (`ANDROID_JAR`) | any recent `android.jar`: compiles the platform layer and all demos, runs `Gles1FogTest`, the GLSL checks, the GL replay and `DemoSmokeTest` |
-| `--api3 FILE` (`ANDROID_API3`) | a **genuine API 3 jar**: the core, the platform layer and all demos must compile against it with zero errors |
+| `--android-jar FILE` (`ANDROID_JAR`) | any recent `android.jar`: compiles the platform layer, runs `Gles1FogTest` and the GLSL checks |
+| `--api3 FILE` (`ANDROID_API3`) | a **genuine API 3 jar**: the core and the platform layer must compile against it with zero errors |
 | `--api5 FILE` (`ANDROID_API5`) | proves that `MultiTouchHandler` compiles on API 5 (and, with API 3 given, that it does not compile on API 3) |
 | `--api9 FILE` (`ANDROID_API9`) | the same for `AndroidGl2` and `Gles2Setup`; `--api8 FILE` (`ANDROID_API8`, optional) proves they really need API 9 |
 
@@ -1335,23 +1575,22 @@ for API 3 and 4.
 
 | Check | Needs an Android jar |
 |---|---|
-| core compiles; `CoreTest`, `PhysicsTest`, `ContentTest`, `TownMapTest`, `PortMapTest`, `CameraTrackTest` | no |
-| `TownDemoTest`, `PortDemoTest`: the real assets and the real screens in plain Java with scripted taps | no |
+| core compiles; `CoreTest`, `PhysicsTest`, `CameraTrackTest`, `HttpTest`, `NetTest` (UDP on the loopback interface), `ServerTest` (the server on the loopback interface) | no |
 | `docs/API.md` is up to date; the sample camera track bakes and passes `CameraTrackTest` | no (Python) |
 | `PlatformTest` (settings, storage, touch, UI), `Gles2Test` (the shader backend on a recording GL) | no |
-| `DesktopTest` (platforms, links, download and checksums, cache, assets, storage, wav, png, shaders, input, icon); the desktop window, OpenGL and sound classes against the LWJGL stubs; the desktop demo | no |
-| `Gles1FogTest`, GLSL compilers, GL replay on Mesa (they are skipped when `glslangValidator` or gcc + EGL are missing), `DemoSmokeTest` (all demo screens, 4000 frames each) | yes |
+| `DesktopTest` (platforms, links, download and checksums, cache, assets, storage, wav, png, shaders, input, icon); the desktop window, OpenGL and sound classes against the LWJGL stubs | no |
+| `Gles1FogTest`, GLSL compilers (skipped when `glslangValidator` is missing) | yes |
 | API 3, 5 and 9 checks | yes (genuine jars) |
 
 ### Building an APK
 
 ```
-skarph-android/build-android.sh demos/demo-v1.0 --sdk ~/Android/Sdk
+skarph-android/build-android.sh my-game --sdk ~/Android/Sdk
 skarph-android/build-android.sh my-game -o my-game.apk --android-jar ~/android.jar --build-tools ~/Sdk/build-tools/34.0.0
 skarph-android/build-android.sh my-game --keystore my.keystore --key-alias release --ks-pass env:KS_PASS
 ```
 
-`APP_DIR` is laid out like the folders in `demos/`: `AndroidManifest.xml`, `src/`, optional `assets/` and `res/`. The sources
+`APP_DIR` contains `AndroidManifest.xml`, `src/`, optional `assets/` and `res/`. The sources
 of the engine are compiled in. The script runs `javac` (Java 8 bytecode), `aapt2`, `d8`, `zipalign` and `apksigner` and prints
 each step; the result is `build/apk/NAME.apk` (or `-o FILE`), signed with a debug key (`~/.skarph/debug.keystore`, created on
 first use) unless `--keystore` is given. It needs the JDK and, from the Android SDK, the build-tools (aapt2, d8, zipalign,
@@ -1363,15 +1602,10 @@ Android 14 and newer refuse to install programs with a `targetSdkVersion` below 
 
 How the tests work:
 
-- **Headless screens.** The demo screens never touch platform classes: GC counters and backend restarts come through a
-  `BackendSwitcher` interface. The tests run them in a plain JVM with a recording renderer, audio and storage and scripted
-  touches, and check what was drawn, played and saved.
-- **Zero allocation.** `CoreTest`, `PhysicsTest`, `PlatformTest`, `Gles2Test` and the demo tests count the bytes allocated
-  over 100000 frames or hundreds of steady demo frames.
+- **Zero allocation.** `CoreTest`, `PhysicsTest`, `PlatformTest` and `Gles2Test` count the bytes allocated
+  over 100000 frames.
 - **Shader backend without a GPU** (`Gles2Test`, `tests/glsl`): programs per feature set, uniforms, state, context loss and
-  failure handling on a fake GL; the shader sources on real GLSL compilers; the call sequence of a real demo replayed on
-  Mesa (zero GL errors).
-- **UI snapshots** (`tests/UiSnapshots.java`): a small CPU renderer draws the menu pages to check layouts.
+  failure handling on a fake GL; the shader sources on real GLSL compilers.
 
 Not testable without a device or a window: the real sound output, the multi-touch event stream, EGL context and window
 creation, image decoding by the system, driver quirks and real GPU speed. These are thin wrappers; the logic around them is
@@ -1577,8 +1811,7 @@ skarph-desktop/build-desktop.sh my.package.MyGame "src/dir1 src/dir2" assets/ bu
 The script can be run from any folder. It needs a JDK and the network once (it fetches the LWJGL jars it compiles against; `LWJGL_CP=...` uses jars you have).
 The jar gets the engine, the desktop layer, your classes and the assets (inside the jar, under `assets/`), and the manifest
 entries `Main-Class: skarph.desktop.Launcher` and `Skarph-Game: my.package.MyGame`. Without the manifest entry: `--game=my.package.MyGame`.
-`skarph-desktop/build-desktop.sh` without arguments only prints its help, which also shows the full command that builds the
-demo-v1.0 jar (`build/desktop/skarph-demo-v1.0.jar`).
+`skarph-desktop/build-desktop.sh` without arguments only prints its help, which also shows a full example command.
 
 The script compiles with `--release 8` when the JDK supports it, so that a jar built on a newer JDK also starts on Java 8.
 Source files that import `android.*` (the Activity launchers) are left out of the jar.
@@ -1632,11 +1865,11 @@ Tests: `tests/DesktopTest.java` (platforms, links, download, checksums, cache, a
 
 ---
 
-## 15. New in 1.2
+## 15. Extended features
 
 Everything below follows the engine's rules: fixed capacities, nothing allocates per frame (each feature has a test that
-counts allocated bytes over thousands of ticks), only API-3-safe Java in the core (new interface methods are `default`
-methods, so old implementations keep compiling). Run `tests/run-12-tests.sh` to compile and test it all.
+counts allocated bytes over thousands of ticks), only API-3-safe Java in the core (interface methods of these features are `default`
+methods). Run `tests/run-12-tests.sh` to compile and test it all.
 
 ### 15.1 Smooth motion: render interpolation
 Logic still runs at 60 ticks per second; the screen can run faster or slower. `engine.getAlpha()` (0..1) is how far the
@@ -1653,7 +1886,7 @@ orientation changes, and once after `init()`.
 `angleDelta`, `atan2`, `acos`, `asin`; angles in degrees), `Camera.isAabbVisible(...)` (frustum against a box).
 
 ### 15.3 Rendering
-New `Renderer` calls (all `default` methods, implemented by GLES2 and GLES1):
+`Renderer` calls (all `default` methods, implemented by GLES2 and GLES1):
 `setBlendMode(BLEND_OPAQUE | BLEND_ALPHA | BLEND_ADD)`, `setAlphaTest(cutoff)`, `setCulling(bool)`, `setTint(r,g,b,a)`,
 `drawLines(data, n)` (7 floats per vertex), `setViewport` / `resetViewport`, `setScissor`, `clearDepth`,
 `createDynamicMesh` + `updateMesh` (a mesh you rewrite every frame, fixed capacity).
@@ -1676,7 +1909,7 @@ ground snap; it drives a mass-0 capsule), `ContactListener` (`onBegin`, `onEnd`,
 Not included: body rotation (boxes stay axis aligned), triangle-mesh collision, shadows.
 
 ### 15.5 Audio
-The platform hosts now wrap their backend in `AudioMixer`, so `engine.getAudio()` offers: `setStreamVolume` / `setStreamPitch`
+The platform hosts wrap their backend in `AudioMixer`, so `engine.getAudio()` offers: `setStreamVolume` / `setStreamPitch`
 / `isStreamPlaying` (ids carry a generation: a stale id is ignored), buses (`BUS_MASTER`, `BUS_SFX`, `BUS_MUSIC`, `BUS_UI`;
 `setBusVolume`), 3D sound (`setListener(x,y,z,yaw)`, `playSound3D`, `setStreamPosition`: distance attenuation + left/right
 pan), music `crossfadeMusic` / `fadeMusicOut` / `fadeMusicIn` (sequential: out, then in; the backends play one track).
@@ -1704,5 +1937,35 @@ Tiled maps: `python3 tools/tmx2map.py level.tmx out.map`, then `TileMap.load(byt
 `solid`, `oneway`, `ladder`, `hazard`, `water`, `user1..3` become flags; a layer named `collision` is the collision layer.
 Not included: slopes in `Body2D`, isometric / hexagonal maps, flipped tiles.
 
-### 15.8 Not in 1.2
+### 15.8 Not included
 Render-to-texture / `readPixels`, point lights, shadows, submeshes, body rotation and mesh collision in physics.
+
+---
+
+## 16. UDP and server
+
+### 16.1 UDP for online play
+`UdpSocket` (datagrams to one peer, or from many peers when made by `UdpSocket.listen`; background threads, fixed queues, no
+blocking or allocation on the game thread, `MAX_PACKET` 1200 bytes, simulated loss and delay), `UdpPacket` and `NetMessage`
+(reusable holders) and `NetChannel` (handshake with `appId` check, keep-alive, timeouts; unreliable sequenced `send`,
+reliable ordered `sendReliable`, 32-bit acknowledgement masks, round trip time, packet loss). `engine.connectUdp(host, port)`
+and `engine.connectNet(host, port, appId)` create them; `engine.releaseNet()` (called by `EngineView.destroy()` and the
+desktop window) closes them together with the HTTP thread. See section 9, *Network: UDP*.
+Tests: `tests/NetTest.java` (83 checks on loopback sockets: handshake, refusal, ordering, duplicates, bit masks verified
+against a hand-written peer, 60 reliable messages in each direction under 30 % loss, round trip time, loss measurement,
+timeouts, wrap-around of datagram numbers and of 70 000 reliable ids, zero allocation); `tests/run-13-tests.sh`.
+
+### 16.2 Server
+`NetServer` (many clients on one port, one `NetChannel` each; accept and refuse with a reason; `kick`, `ban`,
+`setMaxClientsPerAddress`, `ConnectFilter` with access to the connect data; rooms and `broadcast` / `broadcastReliable` /
+`broadcastReliableBig`; `NetEvent` for joins and leaves; replacement of restarted clients; `REASON_UNKNOWN` for forgotten
+clients; rate-limited replies to unknown sources), `NetClient`, `ServerLoop` with `ServerHandler` / `ServerAdapter`
+(dedicated server in a plain Java program: fixed tick rate, callbacks, orderly stop), `ServerBrowser` (LAN search and server
+queries: name, players, ping, application data) and `engine.listenNet(...)` (a game that hosts a match).
+Client and wire-format features: connect data (`setConnectData`), close
+reasons (`getCloseReason()`), big reliable messages (`sendReliableBig`, up to 32768 bytes, `NetMessage(int)`),
+`UdpSocket.sendTo` and `awaitOpen`. `examples/RoomServer.java` is a complete server in one file.
+Tests: `tests/ServerTest.java` (123 checks on loopback sockets: five clients on one port, every refusal, filter and connect
+data, kick, ban, timeouts, restarted client, forgotten client, restarted server, wire format byte by byte, rate-limited
+replies, rooms and relay under 20 % loss, 20000-byte messages under 15 % loss, server browser, loop callbacks and orderly stop,
+`examples/RoomServer.java` against real clients, `Engine.listenNet`, zero allocation of the server tick with eight clients).

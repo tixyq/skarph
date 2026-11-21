@@ -28,7 +28,7 @@ GROUPS = [
     ("Physics", "PhysicsWorld Body Collision Contact SpatialGrid CharacterController ContactListener Heightfield"),
     ("Effects and cutscenes", "ParticleSystem ParticleType CameraTrack Timeline"),
     ("Diagnostics and quality", "Profiler Benchmark QualityGovernor"),
-    ("Sound, saving and network", "Audio AudioMixer NullAudio Storage MemoryStorage Settings Http HttpRequest UrlHttp"),
+    ("Sound, saving and network", "Audio AudioMixer NullAudio Storage MemoryStorage Settings Http HttpRequest UrlHttp UdpSocket UdpPacket NetChannel NetMessage NetServer NetClient NetEvent ServerBrowser ServerLoop ServerHandler ServerAdapter"),
     ("Android platform layer", "EngineView AndroidVersion GLES1Renderer GLES2Renderer AndroidAssets AndroidAudio AndroidStorage AndroidGc AndroidLog BitmapImageLoader"),
 ]
 

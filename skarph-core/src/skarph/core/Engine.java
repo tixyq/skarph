@@ -7,7 +7,7 @@ package skarph.core;
  */
 public final class Engine {
     /** The engine version. */
-    public static final String VERSION = "1.2";
+    public static final String VERSION = "1.3";
 
     public final InputQueue input = new InputQueue(256);
     public final Stats stats = new Stats();
@@ -17,6 +17,8 @@ public final class Engine {
     private Audio audio = new NullAudio();
     private Storage storage = new MemoryStorage();
     private Http http;
+    private final java.util.ArrayList<UdpSocket> udpSockets = new java.util.ArrayList<UdpSocket>();
+    private final java.util.ArrayList<NetServer> netServers = new java.util.ArrayList<NetServer>();
     private final Object lock = new Object();
     private Screen screen;
     private Resizable resizable;
@@ -75,6 +77,79 @@ public final class Engine {
             http.release();
             http = null;
         }
+    }
+
+    /**
+     * Opens a UDP socket to {@code host:port} in the background and returns at once (see {@link UdpSocket}). The engine
+     * remembers it and closes it in {@link #releaseNet()}. Never throws and never returns null.
+     */
+    public UdpSocket connectUdp(String host, int port) {
+        UdpSocket s = UdpSocket.connect(host, port);
+        track(s);
+        return s;
+    }
+
+    /**
+     * Starts an online connection to {@code host:port}: a {@link NetChannel} over its own UDP socket, closed by
+     * {@link NetChannel#close()} or at the latest by {@link #releaseNet()}. Call {@code update()} on it every tick.
+     * Never throws and never returns null.
+     */
+    public NetChannel connectNet(String host, int port, int appId) {
+        UdpSocket s = UdpSocket.connect(host, port);
+        track(s);
+        return new NetChannel(s, appId);
+    }
+
+    /**
+     * Starts a server that listens on {@code port} (UDP) for up to {@code maxClients} clients of the game {@code appId}: a
+     * match hosted by the game itself (the host plays through {@link #connectNet} to {@code "127.0.0.1"}). Closed by
+     * {@link NetServer#close()} or at the latest by {@link #releaseNet()}. Call {@code update()} on it every tick.
+     * A dedicated server needs no engine: see {@link ServerLoop}. Never throws and never returns null.
+     */
+    public NetServer listenNet(int port, int appId, int maxClients) {
+        NetServer s = NetServer.listen(port, appId, maxClients);
+        synchronized (netServers) {
+            for (int i = netServers.size() - 1; i >= 0; i--) {
+                int st = netServers.get(i).getState();
+                if (st == NetServer.CLOSED || st == NetServer.FAILED) {
+                    netServers.remove(i);
+                }
+            }
+            netServers.add(s);
+        }
+        return s;
+    }
+
+    private void track(UdpSocket s) {
+        synchronized (udpSockets) {
+            for (int i = udpSockets.size() - 1; i >= 0; i--) {
+                int st = udpSockets.get(i).getState();
+                if (st == UdpSocket.CLOSED || st == UdpSocket.FAILED) {
+                    udpSockets.remove(i); // forget the finished ones
+                }
+            }
+            udpSockets.add(s);
+        }
+    }
+
+    /**
+     * Called by the platform layer when the program ends: closes every UDP socket opened with {@link #connectUdp} or
+     * {@link #connectNet} and every server started with {@link #listenNet} (queued datagrams, such as a goodbye, are still sent) and stops the HTTP thread.
+     */
+    public void releaseNet() {
+        synchronized (netServers) {
+            for (int i = 0; i < netServers.size(); i++) {
+                netServers.get(i).close();
+            }
+            netServers.clear();
+        }
+        synchronized (udpSockets) {
+            for (int i = 0; i < udpSockets.size(); i++) {
+                udpSockets.get(i).close();
+            }
+            udpSockets.clear();
+        }
+        releaseHttp();
     }
 
     /** Access to the application's data files (textures, models, levels). */

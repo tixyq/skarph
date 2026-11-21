@@ -1,7 +1,7 @@
 // Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 import skarph.core.*;
 
-/** Headless tests of the 1.2 physics: capsules, character controller, events, triggers, layers, sleeping, sweeps, joints, terrain. */
+/** Headless tests of the extended physics: capsules, character controller, events, triggers, layers, sleeping, sweeps, joints, terrain. */
 public class Physics2Test {
     static int failed;
 
@@ -343,7 +343,7 @@ public class Physics2Test {
         long delta = allocated() - a0;
         check(delta < 2048, "zero allocation: 5000 steps with capsules, controller, listener, sleeping, joints, terrain, rays (" + delta + " bytes)");
 
-        System.out.println(failed == 0 ? "ALL PHYSICS 1.2 TESTS PASSED" : failed + " TESTS FAILED");
+        System.out.println(failed == 0 ? "ALL EXTENDED PHYSICS TESTS PASSED" : failed + " TESTS FAILED");
         if (failed != 0) System.exit(1);
     }
 }

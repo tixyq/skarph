@@ -104,7 +104,7 @@ public final class SpriteBatch {
 
     /**
      * Clips the following sprites to a pixel rectangle of the screen (origin top-left). Pending sprites are drawn first.
-     * Needs a renderer with setScissor() (GLES2 and GLES1 in 1.2). Call clearScissor() when done.
+     * Needs a renderer with setScissor() (GLES2 and GLES1 have it). Call clearScissor() when done.
      */
     public void setScissor(int px, int py, int pw, int ph) {
         flush();

@@ -11,7 +11,7 @@ USAGE
   skarph-desktop/build-desktop.sh help | -help | --help | -h      this text (also without any argument)
 
 ARGUMENTS
-  GAME_CLASS   the class with the game, e.g. skarph.demo.v10.DesktopDemo
+  GAME_CLASS   the class with the game, e.g. my.package.MyGame
   SRC_DIRS     the folders with your Java sources, in quotes, separated by spaces. Files that import android.*
                (the Activity launchers) are left out of the jar
   ASSETS_DIR   the folder with your data files (models, textures, sounds); it ends up inside the jar
@@ -23,11 +23,11 @@ ENVIRONMENT
   LWJGL_CP     the LWJGL 3.3.6 API jars (lwjgl, glfw, opengl, openal, stb), absolute paths separated by ':'.
                Without it the script downloads and checks them once (needs a network, see below).
 
-EXAMPLE (the demo-v1.0 jar)
-  skarph-desktop/build-desktop.sh skarph.demo.v10.DesktopDemo \
-      "demos/demo-v1.0/src demos/demo-v1.0/desktop" demos/demo-v1.0/assets \
-      build/desktop/skarph-demo-v1.0.jar "Skarph demo v1.0"
-  java -jar build/desktop/skarph-demo-v1.0.jar        (other checks: --check-links, --setup-only)
+EXAMPLE
+  skarph-desktop/build-desktop.sh my.package.MyGame \
+      "my-game/src" my-game/assets \
+      build/desktop/my-game.jar "My game"
+  java -jar build/desktop/my-game.jar        (other checks: --check-links, --setup-only)
 
 WHAT IT DOES
   The jar holds the engine, the desktop layer, your program and its assets, but no LWJGL: on the first start the

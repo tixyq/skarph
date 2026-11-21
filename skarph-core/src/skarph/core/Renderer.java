@@ -141,8 +141,8 @@ public interface Renderer {
     void drawQuads(int texture, float[] vertices, int quadCount);
 
     // ------------------------------------------------------------------------------------------------
-    // Added in 1.2. Every method below has a harmless default, so older implementations keep compiling;
-    // the platform backends override all of them (except where a method says otherwise).
+    // Every method below has a harmless default; the platform backends override all of them
+    // (except where a method says otherwise).
     // ------------------------------------------------------------------------------------------------
 
     /** setBlendMode(): no blending, depth written (default). */

@@ -1,7 +1,7 @@
 // Copyright (C) 2026 tixyq. MIT License, see LICENSE.
 import skarph.core.*;
 
-/** 1.2: math (Quat, Vec2, Ease, Tween, Plane, frustum-AABB), render interpolation, resize, AsyncLoader, Level capacities. */
+/** Math (Quat, Vec2, Ease, Tween, Plane, frustum-AABB), render interpolation, resize, AsyncLoader, Level capacities. */
 public class Core12Test {
     static int failed;
 
@@ -363,7 +363,7 @@ public class Core12Test {
             check(qd < 2048, "zero allocation: particles, billboards, input queue, spatial grid (" + qd + " bytes)");
         }
 
-        System.out.println(failed == 0 ? "ALL 1.2 CORE TESTS PASSED" : failed + " TESTS FAILED");
+        System.out.println(failed == 0 ? "ALL EXTENDED CORE TESTS PASSED" : failed + " TESTS FAILED");
         if (failed != 0) System.exit(1);
     }
 }

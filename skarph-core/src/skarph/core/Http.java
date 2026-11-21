@@ -5,7 +5,7 @@ package skarph.core;
  * Simple HTTP and HTTPS for slow but reliable fetching and sending of small pieces of information (news, a version
  * file, a leaderboard, a configuration; GET to fetch, POST to send, for example a score). Requests run in the background and never block the game loop; the game polls the returned
  * {@link HttpRequest} (no callbacks, no allocation while polling). It is not meant for real-time traffic:
- * for a game that talks to a server every frame use something else.
+ * for a game that talks to a server every frame use {@link NetChannel} (UDP).
  * {@code engine.getHttp()} gives the default implementation, {@link UrlHttp}.
  */
 public interface Http {

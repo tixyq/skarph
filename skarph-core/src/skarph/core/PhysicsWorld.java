@@ -13,7 +13,6 @@ package skarph.core;
  *
  * Limits: no body rotation, no triangle mesh collision, no stacking stability guarantees (stacks jitter
  * a little). Fast bodies are swept against static boxes (ccdEnabled), so thin walls hold.
- * Everything added in 1.2 is off or free until used; a world that uses none of it behaves as in 1.1.
  */
 public final class PhysicsWorld {
     public static final int SPHERE = 0;

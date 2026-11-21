@@ -1,6 +1,6 @@
 # Architecture
 
-A one-page map of Skarph 1.2 (`Engine.VERSION`). Details of every class are in [MANUAL.md](MANUAL.md) and [API.md](API.md); this page
+A one-page map of Skarph 1.3 (`Engine.VERSION`). Details of every class are in [MANUAL.md](MANUAL.md) and [API.md](API.md); this page
 only shows how the parts fit together and which rules hold everywhere.
 
 ## 1. Layers
@@ -10,7 +10,7 @@ The core is pure Java and knows no platform. It talks to the outside world only 
 
 ```mermaid
 flowchart TB
-    game["Your game / demos<br/>(Screen implementations, plain Java)"]
+    game["Your game<br/>(Screen implementations, plain Java)"]
 
     subgraph core["skarph-core: pure Java, no platform classes"]
         direction TB
@@ -47,6 +47,8 @@ Rules of the layers:
 - The platform layers do not depend on each other, except that the desktop window reuses `GLES2Renderer` (it is pure Java on top of the `Gl2` interface) with its own `LwjglGl2`.
 - Everything the core needs from the platform is handed in by the platform layer: `engine.setAssets()`, `setAudio()`, `setStorage()`.
 - The network is the one service that needs no platform class: `Http` / `UrlHttp` (GET and POST) use only `java.net`, which both platforms have, so they live in the core (`engine.getHttp()`; Android only needs the `INTERNET` permission).
+- UDP for online play follows the same pattern: `UdpSocket` (datagrams, `engine.connectUdp()`) and `NetChannel` (connection, acknowledgements, reliable messages, `engine.connectNet()`) use only `java.net`, run their I/O on two daemon threads and exchange data with the game thread through fixed ring queues, so `update()`, `send()` and `receive()` neither block nor allocate. `engine.releaseNet()` closes them and stops HTTP when the program ends.
+- The server uses the same code: `NetServer` owns one listening `UdpSocket` (`UdpSocket.listen`, unconnected, `sendTo`), finds a client by address and port in a small hash table and passes each datagram to that client's `NetChannel` (a channel without a socket of its own, driven by `NetServer.update()`). `ServerLoop` calls `update()` at a fixed rate with callbacks and needs no window or engine, so a dedicated server requires only `skarph-core`. `ServerBrowser` queries servers (kinds 5 and 6 of the wire format).
 
 ## 2. One frame
 

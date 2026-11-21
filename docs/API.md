@@ -24,6 +24,10 @@ the Android platform layer (`skarph.android`) is listed at the end. The desktop 
 | `synchronized Http getHttp()` | HTTP and HTTPS for fetching small pieces of information in the background (see Http). |
 | `synchronized void setHttp(Http http)` | Replaces the network (options of a UrlHttp, or a fake in tests); null brings the default back. |
 | `synchronized void releaseHttp()` | Called by the platform layer when the program ends: stops the network thread, if one was ever started. |
+| `UdpSocket connectUdp(String host, int port)` | Opens a UDP socket to host:port in the background and returns at once (see UdpSocket). |
+| `NetChannel connectNet(String host, int port, int appId)` | Starts an online connection to host:port: a NetChannel over its own UDP socket, closed by NetChannel#close() or at the latest by #releaseNet(). |
+| `NetServer listenNet(int port, int appId, int maxClients)` | Starts a server that listens on port (UDP) for up to maxClients clients of the game appId: a match hosted by the game itself (the host plays through #connectNet to "127.0.0.1"). |
+| `void releaseNet()` | Called by the platform layer when the program ends: closes every UDP socket opened with #connectUdp or #connectNet and every server started with #listenNet (queued datagrams, such as a goodbye, are still sent) and stops the HTTP thread. |
 | `Assets getAssets()` | Access to the application's data files (textures, models, levels). |
 | `void setScreen(Screen s)` | Switch screen. |
 | `void frame(long nowNanos, Renderer r)` |  |
@@ -1646,6 +1650,288 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `HttpRequest post(String url, byte[] body, String contentType)` |  |
 | `void release()` |  |
 
+### `UdpSocket`
+
+`skarph.core.UdpSocket` - UDP socket for the game loop.
+
+| Member | Description |
+|---|---|
+| `static final int MAX_PACKET` | The largest datagram that can be sent or received, in bytes. |
+| `static final int DEFAULT_QUEUE` | Default number of datagrams each of the two queues holds. |
+| `static final int CONNECTING` | The socket is being opened; datagrams sent now are queued. |
+| `static final int OPEN` | The socket is open. |
+| `static final int FAILED` | Could not start (bad address, server not found, port in use): #getError() says why. |
+| `static final int CLOSED` | Closed by #close(). |
+| `static UdpSocket connect(String host, int port)` | #connect(String, int, int, int) with any local port and #DEFAULT_QUEUE. |
+| `static UdpSocket connect(String host, int port, int localPort, int queueSize)` | Starts talking to host:port (a name or an IP address) in the background and returns at once. |
+| `static UdpSocket listen(String bindHost, int port, int queueSize)` | Creates a server socket bound to port (0 = any free port, see #getLocalPort()) that receives datagrams from any sender, and returns at once. |
+| `boolean isListening()` | True for a socket made by #listen. |
+| `boolean awaitOpen(int millis)` | Blocks the calling thread until the socket leaves #CONNECTING, at most millis. |
+| `int getState()` | #CONNECTING, #OPEN, #FAILED or #CLOSED. |
+| `boolean isOpen()` | True while datagrams can be sent and received. |
+| `String getError()` | What went wrong, or null unless the state is #FAILED. |
+| `String getHost()` | The host name or address given to #connect. |
+| `int getPort()` | The remote port given to #connect. |
+| `InetAddress getRemoteAddress()` | The address of the server once it is found, else null. |
+| `int getLocalPort()` | The local port in use, or -1 while the socket is not open. |
+| `boolean send(byte[] data, int offset, int length)` | Queues a datagram for sending (the bytes are copied, so the array may be reused at once). |
+| `boolean sendTo(InetAddress address, int port, byte[] data, int offset, int length)` | Like #send for a socket made by #listen: queues a datagram for address:port (the bytes are copied). |
+| `boolean receive(UdpPacket out)` | Copies the oldest received datagram into out and removes it from the queue. |
+| `void setSimulation(int lossPercent, int latencyMillis)` | Simulates an unreliable network for outgoing datagrams: each is dropped with the given probability (0..100 %) and the rest are delayed by latencyMillis (one way, order preserved, no jitter). |
+| `void close()` | Closes the socket after the queued datagrams have been sent (without simulated delay). |
+| `long getPacketsSent()` | Datagrams handed to the network so far. |
+| `long getPacketsReceived()` | Datagrams received so far (also those dropped because the queue was full). |
+| `long getBytesSent()` | Bytes of the datagrams sent so far (payload only, without the IP and UDP headers). |
+| `long getBytesReceived()` | Bytes of the datagrams received so far (payload only). |
+| `int getDroppedIn()` | Received datagrams thrown away because the receive queue was full or the datagram was bigger than #MAX_PACKET. |
+| `int getDroppedOut()` | Datagrams refused by #send because the send queue was full. |
+| `int getSimulatedLost()` | Datagrams thrown away by #setSimulation. |
+| `int getUnreachable()` | Number of ICMP port-unreachable reports from the operating system (not available on all platforms). |
+
+### `UdpPacket`
+
+`skarph.core.UdpPacket` - Holder for one received datagram, filled by UdpSocket#receive.
+
+| Member | Description |
+|---|---|
+| `final byte[] data` | The payload (capacity UdpSocket#MAX_PACKET); read only #length bytes. |
+| `int length` | Number of valid bytes in #data. |
+| `InetAddress address` | Sender address. |
+| `int port` | The sender's port. |
+| `long receivedNanos` | System#nanoTime() at the moment the datagram arrived (taken on the network thread). |
+
+### `NetChannel`
+
+`skarph.core.NetChannel` - A connection to one peer over a UdpSocket.
+
+| Member | Description |
+|---|---|
+| `static final int CONNECTING` | The connection is not established yet; reliable messages are queued. |
+| `static final int CONNECTED` | The connection is established. |
+| `static final int CLOSED` | Closed here by #close() or by the other side. |
+| `static final int FAILED` | The connection failed (timeout, refusal or socket failure); see #getError(). |
+| `static final int HEADER` | Bytes every datagram of the channel starts with. |
+| `static final int MAX_PAYLOAD` | Maximum size of an unreliable message in bytes; such a message fills the datagram. |
+| `static final int MAX_RELIABLE` | The largest reliable message in bytes. |
+| `static final int RELIABLE_QUEUE` | How many reliable messages can wait for their acknowledgement at the same time. |
+| `static final int MAX_BIG` | Maximum size of a message sent with #sendReliableBig: the entire reliable queue. |
+| `static final int MAX_CONNECT_DATA` | The largest block of connect data: see #setConnectData. |
+| `static final int INBOX` | How many received messages wait in the inbox for #receive. |
+| `static final int MAGIC` | First two bytes of every datagram: "SK". |
+| `static final int KIND_CONNECT` | Datagram kinds (byte 2 of the header). |
+| `static final int KIND_QUERY` | More datagram kinds: a question about a server (ServerBrowser) and the answer to it. |
+| `static final int REASON_APP` | The first reason number a game may use for its own purposes (up to 255); see NetServer.ConnectFilter. |
+| `NetChannel(UdpSocket socket, int appId)` | Creates a client channel over a socket supplied by the caller; the channel does not close it. |
+| `static NetChannel connect(String host, int port, int appId)` | Connects to host:port in the background and returns at once; the channel owns its socket and closes it with #close(). |
+| `NetChannel setTimeouts(int connectMillis, int idleMillis)` | Waiting time for the first answer, then the silence after which a connected channel fails (defaults 8000 and 10000 ms). |
+| `boolean setConnectData(byte[] data, int offset, int length)` | A block of up to #MAX_CONNECT_DATA bytes that is sent to the server with the connection request (a name, a password, a ticket); the server reads it in NetServer.ConnectFilter and NetClient#getConnectData. |
+| `NetChannel setKeepAlive(int millis)` | After this many milliseconds without sending, a tiny keep-alive datagram goes out (default 500). |
+| `int getState()` | #CONNECTING, #CONNECTED, #CLOSED or #FAILED. |
+| `boolean isConnected()` | True while the other side answers. |
+| `String getError()` | What went wrong, or null unless the state is #FAILED. |
+| `UdpSocket getSocket()` | The UDP socket under the channel. |
+| `void update()` | Processes received datagrams, sends acknowledgements and keep-alives, repeats unconfirmed reliable messages and detects a lost connection. |
+| `boolean send(byte[] data, int offset, int length)` | Sends one unreliable message in its own datagram, together with any reliable messages that are due. |
+| `boolean sendReliable(byte[] data, int offset, int length)` | Queues a reliable message: it is sent with the next datagram, repeated until the other side confirms it, and delivered there exactly once and in order. |
+| `boolean sendReliableBig(byte[] data, int offset, int length)` | Like #sendReliable for a message of 1 to #MAX_BIG bytes. |
+| `int getReliableFree()` | How many more reliable messages (or parts of a big one) fit in the queue now. |
+| `int getReliablePending()` | How many reliable messages have not been confirmed yet. |
+| `boolean receive(NetMessage out)` | Copies the oldest received message (reliable or not, in the order of arrival) into out. |
+| `void close()` | Tells the other side (three CLOSE datagrams, best effort) and ends the channel; the state becomes #CLOSED. |
+| `int getCloseReason()` | Why the other side ended the connection, when it said so: one of the REASON_ numbers (also those of the game, from #REASON_APP); -1 when it did not (a timeout, a normal end by us, still connected). |
+| `int getRttMillis()` | Smoothed round trip time in milliseconds, -1 until the first datagram was confirmed. |
+| `float getPacketLoss()` | Share of the datagrams sent recently that were not confirmed, 0..1 (a moving average over the last ~50 datagrams). |
+| `int getSilenceMillis()` | Milliseconds since the last valid datagram arrived. |
+| `long getPacketsSent()` | Datagrams of this channel sent (CONNECT and CLOSE excluded). |
+| `long getPacketsReceived()` | Valid datagrams of this channel received. |
+| `long getBytesSent()` | Bytes of the datagrams sent (with the channel's header, without IP and UDP headers). |
+| `long getBytesReceived()` | Bytes of the valid datagrams received. |
+| `int getBadPackets()` | Datagrams discarded as not belonging to the channel (wrong magic, token or format). |
+| `int getDuplicates()` | Datagrams discarded as duplicates or too old. |
+| `int getBigDropped()` | Big messages discarded because the NetMessage passed to #receive was too small. |
+| `int getInboxDropped()` | Unreliable messages discarded because the inbox was full. |
+
+### `NetMessage`
+
+`skarph.core.NetMessage` - Holder for one message received by a NetChannel, filled by NetChannel#receive.
+
+| Member | Description |
+|---|---|
+| `final byte[] data` | The message (capacity NetChannel#MAX_PAYLOAD or what the constructor was given); read only #length bytes. |
+| `int length` | Number of valid bytes in #data. |
+| `boolean reliable` | True for a message sent with NetChannel#sendReliable, false for one sent with NetChannel#send. |
+| `NetMessage()` | A holder for messages up to NetChannel#MAX_PAYLOAD bytes. |
+| `NetMessage(int capacity)` | A holder with room for capacity bytes (never less than NetChannel#MAX_PAYLOAD); use NetChannel#MAX_BIG for the biggest messages there are. |
+
+### `NetServer`
+
+`skarph.core.NetServer` - UDP server: many clients on one port, one NetChannel per client, same wire format as Engine#connectNet.
+
+| Member | Description |
+|---|---|
+| `static final int OPENING` | Opening the socket. |
+| `static final int RUNNING` | Listening: clients can connect. |
+| `static final int FAILED` | Could not start (the port is taken, a bad address): #getError() says why. |
+| `static final int CLOSED` | Closed by #close(). |
+| `static final int ALL` | The "room" of #broadcast: everybody. |
+| `static final int LEAVE_CLOSED` | NetEvent#reason: the client closed the connection itself. |
+| `static final int LEAVE_TIMEOUT` | NetEvent#reason: nothing was heard from the client for too long, or it never sent a datagram after it was accepted. |
+| `static final int LEAVE_KICKED` | NetEvent#reason: the server kicked or banned it. |
+| `static final int LEAVE_REPLACED` | NetEvent#reason: the same address and port connected again (the client was restarted). |
+| `static final int LEAVE_SHUTDOWN` | NetEvent#reason: the server was closed. |
+| `static NetServer listen(int port, int appId, int maxClients)` | #listen(String, int, int, int) on all local addresses. |
+| `static NetServer listen(String bindHost, int port, int appId, int maxClients)` | Starts a server and returns at once; the socket is opened in the background, so a taken port shows as #FAILED a moment later (#awaitRunning waits for it, for programs that have nothing else to do). |
+| `int getState()` | #OPENING, #RUNNING, #FAILED or #CLOSED. |
+| `boolean isRunning()` | True while clients can connect. |
+| `String getError()` | What went wrong, or null unless the state is #FAILED. |
+| `boolean awaitRunning(int millis)` | Blocks the calling thread until the server leaves #OPENING, at most millis. |
+| `int getLocalPort()` | The port the server listens on (useful when 0 was asked for), -1 while it is not open. |
+| `int getAppId()` | The game id that clients must have. |
+| `UdpSocket getSocket()` | The UDP socket under the server (its counters and UdpSocket#setSimulation for tests). |
+| `NetServer setIdleTimeout(int millis)` | After this many milliseconds of silence a client is dropped (default 10000, as NetChannel#setTimeouts). |
+| `NetServer setKeepAlive(int millis)` | The keep-alive interval of the channels of clients accepted later (default 500, see NetChannel#setKeepAlive). |
+| `NetServer setMaxClientsPerAddress(int max)` | At most this many clients from one address (0 = no limit, the default). |
+| `NetServer setConnectFilter(ConnectFilter filter)` | Sets (or with null removes) the filter that is asked about every client before it is accepted. |
+| `NetServer setInfo(String name, byte[] data, int offset, int length)` | What the server tells those who ask (ServerBrowser): a name of up to 60 bytes and a block of up to 128 bytes of your own (the map, the game mode, the version; null for none). |
+| `NetServer setInfo(String name)` | #setInfo(String, byte[], int, int) with a name only. |
+| `NetServer setDiscovery(boolean on)` | Whether the server answers ServerBrowser questions (default true). |
+| `void update()` | Processes received datagrams (accepting and refusing clients, passing messages to the clients' channels), answers queries, repeats reliable messages, sends keep-alives and drops clients that are gone. |
+| `boolean pollEvent(NetEvent out)` | Copies the oldest event (a client joined or left) into out. |
+| `int getClientCount()` | How many clients are connected now. |
+| `int getMaxClients()` | The most clients at once. |
+| `int getClientSlots()` | The number of places a client can be in: ask #getClientAt for 0 to this minus 1 (empty places give null). |
+| `NetClient getClientAt(int index)` | The client in place index, or null when there is none. |
+| `NetClient getClient(int id)` | The connected client with this number (NetClient#getId()), or null. |
+| `int getRoomCount(int room)` | How many connected clients are in a room (NetServer#ALL: all of them). |
+| `int broadcast(int room, int exceptId, byte[] data, int offset, int length)` | Sends one unreliable message (NetChannel#send) to the clients of a room, or to #ALL of them, except the one with the id exceptId (0 = nobody: ids start at 1). |
+| `int broadcastReliable(int room, int exceptId, byte[] data, int offset, int length)` | Like #broadcast with NetChannel#sendReliable: 1 to NetChannel#MAX_RELIABLE bytes. |
+| `int broadcastReliableBig(int room, int exceptId, byte[] data, int offset, int length)` | Like #broadcastReliable with NetChannel#sendReliableBig. |
+| `void kick(NetClient client)` | #kick(NetClient, int) with NetChannel#REASON_KICKED. |
+| `void kick(NetClient client, int reason)` | Disconnects the client: it is sent the reason (NetChannel#REASON_KICKED, or your own from NetChannel#REASON_APP; shown by NetChannel#getError() and NetChannel#getCloseReason()), and a NetEvent#LEFT with #LEAVE_KICKED follows. |
+| `void ban(InetAddress address)` | Refuses every future connection from this address (not from this port only), and kicks the clients that have it now. |
+| `boolean unban(InetAddress address)` | Takes an address off the ban list; true when it was on it. |
+| `boolean isBanned(InetAddress address)` | True when the address is banned. |
+| `void close()` | Closes the server: clients are notified (best effort) and each produces a NetEvent#LEFT with #LEAVE_SHUTDOWN; the socket is closed after the queued datagrams have been sent. |
+| `long getAcceptedCount()` | Clients accepted so far. |
+| `long getRefusedCount()` | Connection requests turned down so far (wrong appId, full, banned, filtered). |
+| `int getBadPackets()` | Datagrams discarded as not belonging to the protocol (wrong magic, too short, unknown kind). |
+| `int getStrayPackets()` | Datagrams from addresses that are not connected clients. |
+| `int getQueriesAnswered()` | Questions about the server that were answered (ServerBrowser). |
+
+Nested: `NetServer.ConnectFilter` - Decides about a client before it is accepted: see #setConnectFilter.
+
+| Member | Description |
+|---|---|
+| `int check(InetAddress address, int port, byte[] data, int offset, int length)` | Says whether this client may come in. |
+
+### `NetClient`
+
+`skarph.core.NetClient` - One client of a NetServer: identity, connection and application data.
+
+| Member | Description |
+|---|---|
+| `int getId()` | Unique client id, assigned in order of arrival starting at 1; not reused while the server runs. |
+| `NetChannel getChannel()` | The client's connection (its NetChannel#receive, NetChannel#getRttMillis() ...). |
+| `InetAddress getAddress()` | The client's address. |
+| `int getPort()` | The client's port. |
+| `boolean isPresent()` | True until the client leaves (or is kicked): see NetEvent#LEFT. |
+| `Object getUserData()` | Application object associated with this client; not used by the server. |
+| `void setUserData(Object userData)` | Sets #getUserData(). |
+| `int getRoom()` | The room the client is in (default 0): NetServer#broadcast can address a room. |
+| `void setRoom(int room)` | Puts the client in a room (any number; NetServer#ALL is not a room). |
+| `int getConnectedMillis()` | Milliseconds since the client was accepted. |
+| `int getConnectDataLength()` | Length of the connect data the client sent with its request (NetChannel#setConnectData), 0 when none. |
+| `int getConnectData(byte[] out, int offset)` | Copies the connect data into out (at most what fits) and returns the number of bytes copied. |
+| `boolean send(byte[] data, int offset, int length)` | NetChannel#send. |
+| `boolean sendReliable(byte[] data, int offset, int length)` | NetChannel#sendReliable. |
+| `boolean sendReliableBig(byte[] data, int offset, int length)` | NetChannel#sendReliableBig. |
+| `boolean receive(NetMessage out)` | NetChannel#receive: the oldest message this client sent. |
+| `int getRttMillis()` | NetChannel#getRttMillis(). |
+| `float getPacketLoss()` | NetChannel#getPacketLoss(). |
+| `String toString()` |  |
+
+### `NetEvent`
+
+`skarph.core.NetEvent` - Holder for one event of a NetServer, filled by NetServer#pollEvent.
+
+| Member | Description |
+|---|---|
+| `static final int JOINED` | #type: a client was accepted. |
+| `static final int LEFT` | #type: a client is gone; #reason gives the cause. |
+| `int type` | #JOINED or #LEFT. |
+| `NetClient client` | The client the event is about (remains valid after #LEFT: id, address, user data, unread messages). |
+| `int reason` | For #LEFT: one of the NetServer.LEAVE_ numbers. |
+
+### `ServerBrowser`
+
+`skarph.core.ServerBrowser` - Discovers servers of one application and queries their state, for LAN game lists and server lists with player count and ping.
+
+| Member | Description |
+|---|---|
+| `static final int MAX_SERVERS` | The most servers the list holds. |
+| `static ServerBrowser create(int appId)` | Opens the socket (any local port) in the background and returns at once; never throws and never returns null. |
+| `boolean isOpen()` | True while the browser can send and listen; false when its socket failed or it was closed. |
+| `String getError()` | The error text when the socket could not be opened, else null. |
+| `ServerBrowser setExpiry(int millis)` | After this many milliseconds without an answer a server is taken off the list (default 6000). |
+| `boolean scanLan(int port)` | Asks every machine of the local network that listens on port (broadcast). |
+| `void query(final String host, final int port)` | Asks one server (a name or an address): the way to a server in a list, or on a network that passes no broadcasts. |
+| `void update()` | Reads the answers that arrived and drops servers that were silent for too long. |
+| `void clear()` | Forgets all servers found so far. |
+| `int getCount()` | How many servers are in the list. |
+| `InetAddress getAddress(int i)` | The address of server i (0 to getCount() - 1; the list keeps its order while servers stay). |
+| `int getPort(int i)` | The port of server i. |
+| `String getName(int i)` | The name the server gave itself (NetServer#setInfo); empty when none. |
+| `int getPlayers(int i)` | How many clients server i has. |
+| `int getMaxPlayers(int i)` | How many clients server i takes. |
+| `int getServerAppId(int i)` | The game id of server i (the one asked for, or any when the browser was made for 0). |
+| `int getPingMillis(int i)` | Milliseconds between the last question sent and the answer of server i: approximate ping. |
+| `int getAgeMillis(int i)` | Milliseconds since server i last answered. |
+| `int getDataLength(int i)` | Length of the data block of server i (NetServer#setInfo). |
+| `int getData(int i, byte[] outBytes, int offset)` | Copies the data block of server i into outBytes (at most what fits) and returns the number of bytes copied. |
+| `void close()` | Closes the socket. |
+
+### `ServerLoop`
+
+`skarph.core.ServerLoop` - Main loop of a server program: fixed tick rate, no window, engine or graphics.
+
+| Member | Description |
+|---|---|
+| `ServerLoop(NetServer server, ServerHandler handler, int ticksPerSecond)` | Makes a loop for a server and the handler that is the game. |
+| `ServerLoop setMaxMessageSize(int bytes)` | The biggest message the handler can get (default NetChannel#MAX_PAYLOAD); NetChannel#MAX_BIG takes the big reliable messages too. |
+| `int getTickRate()` | Ticks a second. |
+| `long getTick()` | The number of the last tick that ran (0 before the first). |
+| `boolean isRunning()` | True from the start of the loop until it ends. |
+| `float getLoad()` | The share of a tick that the work took recently (0..1, smoothed); near 1 means the server cannot keep up. |
+| `void stop()` | Asks the loop to end after the current tick. |
+| `void start()` | Runs #run() on a thread of its own (not a daemon thread: it keeps the program alive until the loop ends). |
+| `String run()` | Waits for the server to open its port, calls ServerHandler#onStart, then loops until #stop(). |
+
+### `ServerHandler`
+
+`skarph.core.ServerHandler` - Callbacks of a ServerLoop.
+
+| Member | Description |
+|---|---|
+| `void onStart(NetServer server)` | The server is listening: initialize the game state. |
+| `void onJoin(NetServer server, NetClient client)` | A client was accepted. |
+| `void onLeave(NetServer server, NetClient client, int reason)` | A client is gone (reason is one of the NetServer.LEAVE_ numbers); all its earlier messages have been delivered. |
+| `void onMessage(NetServer server, NetClient client, NetMessage message)` | A message arrived from a client (message is reused: copy what you keep). |
+| `void onTick(NetServer server, long tick, float dt)` | Once per tick, after the messages: advance the game state and send updates. |
+| `void onStop(NetServer server)` | The loop ended; called after the clients have been notified and their leaves delivered: save state, release resources. |
+
+### `ServerAdapter`
+
+`skarph.core.ServerAdapter` - ServerHandler with empty methods.
+
+| Member | Description |
+|---|---|
+| `void onStart(NetServer server)` |  |
+| `void onJoin(NetServer server, NetClient client)` |  |
+| `void onLeave(NetServer server, NetClient client, int reason)` |  |
+| `void onMessage(NetServer server, NetClient client, NetMessage message)` |  |
+| `void onTick(NetServer server, long tick, float dt)` |  |
+| `void onStop(NetServer server)` |  |
+
 ## Android platform layer
 
 ### `EngineView`
@@ -1666,7 +1952,7 @@ Nested: `ResourceManager.Model` - A loaded model: a renderer mesh handle plus it
 | `void setBackendListener(BackendListener listener)` |  |
 | `void onPause()` |  |
 | `void onResume()` |  |
-| `void destroy()` | Call from Activity.onDestroy(): releases the sound resources and stops the network thread. |
+| `void destroy()` | Call from Activity.onDestroy(): releases the sound resources and closes the network (HTTP and UDP). |
 | `boolean onTouchEvent(MotionEvent e)` |  |
 
 Nested: `EngineView.BackendListener` - Called on the UI thread when the OpenGL ES 2.0 backend cannot work on this device.

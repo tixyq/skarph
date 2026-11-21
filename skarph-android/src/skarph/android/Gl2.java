@@ -116,7 +116,7 @@ public interface Gl2 {
     int getError();
     String getString(int name);
 
-    // ---- added in 1.2 (defaults keep old fakes compiling; the real implementations override them) ----
+    // ---- the defaults do nothing; the real implementations override them ----
     default void uniform1f(int location, float value) {
     }
     default void uniform4f(int location, float x, float y, float z, float w) {

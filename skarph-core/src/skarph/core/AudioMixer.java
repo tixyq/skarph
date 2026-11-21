@@ -3,7 +3,7 @@ package skarph.core;
 
 /**
  * Adds buses, per stream volume / pitch, positional 3D sound, music fades and "is it still playing" on top of any platform
- * {@link Audio}. The platform hosts wrap their backend in it, so {@code engine.getAudio()} has all of the 1.2 API.
+ * {@link Audio}. The platform hosts wrap their backend in it, so {@code engine.getAudio()} has all of these features.
  * <pre>
  *   Audio a = engine.getAudio();
  *   a.setBusVolume(Audio.BUS_MUSIC, 0.5f);                       // an options screen slider
